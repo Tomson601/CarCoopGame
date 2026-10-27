@@ -27,6 +27,12 @@ public class EnginePart : NetworkBehaviour
     public float maxFuelConsumption = 20f;
     [Tooltip("Ile °C na sekundę silnik się grzeje przy pełnym gazie i maksymalnych obrotach")]
     public float heatOutput = 4f;
+    [Header("Elektryka")]
+    [Tooltip("Ile % akumulatora rozrusznik pobiera na sekundę kręcenia")]
+    public float starterDrain = 2f;
+
+    [Tooltip("Ile % na sekundę alternator ładuje akumulator przy pracującym silniku")]
+    public float alternatorOutput = 0.3f;
 
     [Tooltip("Oś X: obroty (0 = 0 RPM, 1 = max RPM). Oś Y: mnożnik momentu (1 = pełny moment).")]
     public AnimationCurve torqueCurve = new AnimationCurve(

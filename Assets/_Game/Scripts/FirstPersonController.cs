@@ -23,7 +23,12 @@ public class FirstPersonController : NetworkBehaviour
     private float cameraPitch;
     private Transform seat;
     private float seatYaw;
+    [Header("Pchanie")]
+    public float pushForce = 1500f; // N, mniej więcej siła jednego człowieka pchającego auto
 
+    private Vector3 pushImpulse;
+    private CarController pushCar;
+    private float lastPushSend;
     public bool IsSeated => seat != null;
 
     public override void OnNetworkSpawn()
@@ -59,6 +64,7 @@ public class FirstPersonController : NetworkBehaviour
 
         HandleLook();
         if (canMove) HandleMovement();
+        SendPush();
     }
     void LateUpdate()
     {
@@ -85,6 +91,32 @@ public class FirstPersonController : NetworkBehaviour
         seatYaw = 0f;
         controller.enabled = (seat == null);
         canMove = (seat == null);
+    }
+    // Unity wywołuje to, gdy CharacterController wpada na collider
+    void OnControllerColliderHit(ControllerColliderHit hit)
+    {
+        if (!IsOwner) return;
+
+        CarController car = hit.collider.GetComponentInParent<CarController>();
+        if (car == null) return;
+
+        Vector3 dir = hit.moveDirection;
+        dir.y = 0f;
+        if (dir.sqrMagnitude < 0.01f) return;
+
+        pushImpulse += dir.normalized * pushForce * Time.deltaTime;
+        pushCar = car;
+    }
+
+    void SendPush()
+    {
+        // Wysyłaj 10 razy na sekundę, a nie co klatkę
+        if (pushCar == null || Time.time - lastPushSend < 0.1f) return;
+
+        pushCar.PushRpc(pushImpulse);
+        pushImpulse = Vector3.zero;
+        pushCar = null;
+        lastPushSend = Time.time;
     }
     void HandleLook()
     {

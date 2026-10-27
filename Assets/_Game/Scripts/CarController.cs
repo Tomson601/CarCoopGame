@@ -29,6 +29,8 @@ public class CarController : NetworkBehaviour
     [Header("Hamulce i skręt")]
     public float brakeTorque = 3000f;
     public float handbrakeTorque = 5000f;
+    [Tooltip("Współczynnik oporu toczenia opon. Typowo 0.01-0.02 na asfalcie, więcej na ziemi i piasku.")]
+    public float rollingResistance = 0.015f;
     public float maxSteerAngle = 30f;
 
     [Header("Napęd")]
@@ -65,6 +67,9 @@ public class CarController : NetworkBehaviour
     // Zapłon: widoczny w sieci i zachowany po zmianie kierowcy
     private NetworkVariable<bool> engineOn = new NetworkVariable<bool>(
         false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    // Ręczny: widoczny w sieci i zachowany po zmianie kierowcy. Auta startują z zaciągniętym.
+    private NetworkVariable<bool> handbrakeOn = new NetworkVariable<bool>(
+        true, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private float engineRpm = 0f;
     private float lastShiftTime;
     private float pendingFuel;
@@ -81,7 +86,10 @@ public class CarController : NetworkBehaviour
     private bool isCranking;
     private float crankTimer;
     private bool ignitionLocked; // żeby trzymanie R po odpaleniu/zgaszeniu nie przełączało dalej
-
+    private float crankStrength;       // 0-1, jak mocno kręci rozrusznik (albo koła przy pchaniu)
+    private float rollEngineRpm;       // obroty, jakie koła wymuszają na silniku przez wrzucony bieg
+    private float pendingBatteryDelta; // zmiana naładowania, która jeszcze nie poszła do hosta
+    private bool gearHolding; // zgaszony silnik na biegu trzyma stojące auto
     public ulong DriverId => GetOccupant(0);
     public bool HasDriver => DriverId != NoOne;
     public bool IsDrivenByMe => IsOwner && DriverId == NetworkManager.LocalClientId;
@@ -92,6 +100,7 @@ public class CarController : NetworkBehaviour
         parts = GetComponent<CarParts>();
         rb.centerOfMass = new Vector3(0, -0.3f, 0);
         rb.interpolation = RigidbodyInterpolation.Interpolate;
+        rb.sleepThreshold = 0f; // auto nigdy nie zasypia
 
         occupants = new NetworkList<ulong>();
         seatedPlayers = new FirstPersonController[seats.Length];
@@ -217,6 +226,24 @@ public class CarController : NetworkBehaviour
         CarPart part = parts.GetMountedPart(PartType.Radiator);
         return part != null ? part.GetComponent<RadiatorPart>() : null;
     }
+    BatteryPart GetBattery()
+    {
+        CarPart part = parts.GetMountedPart(PartType.Battery);
+        return part != null ? part.GetComponent<BatteryPart>() : null;
+    }
+
+    // Naładowanie wraz ze zmianami, których host jeszcze nie dostał
+    float GetCharge(BatteryPart battery)
+    {
+        return Mathf.Clamp(battery.charge.Value + pendingBatteryDelta, 0f, 100f);
+    }
+
+    // Wywoływane przez pchającego gracza, wykonywane u właściciela auta (to on liczy fizykę)
+    [Rpc(SendTo.Owner)]
+    public void PushRpc(Vector3 impulse)
+    {
+        rb.AddForce(impulse, ForceMode.Impulse);
+    }
 
     // ---------- Jazda ----------
 
@@ -224,14 +251,13 @@ public class CarController : NetworkBehaviour
     {
         if (!IsSpawned || !IsOwner)
         {
-            tempEngine = null; // gdy znowu przejmiemy auto, weźmiemy temperaturę od hosta
+            tempEngine = null;
             return;
         }
 
         float throttle = 0f;
         float footBrake = 0f;
         float steer = 0f;
-        bool handbrake = false;
 
         if (IsDrivenByMe)
         {
@@ -240,7 +266,6 @@ public class CarController : NetworkBehaviour
             if (kb.sKey.isPressed) footBrake = 1f;
             if (kb.dKey.isPressed) steer += 1f;
             if (kb.aKey.isPressed) steer -= 1f;
-            handbrake = kb.spaceKey.isPressed;
         }
 
         // Skręt
@@ -251,26 +276,40 @@ public class CarController : NetworkBehaviour
         if (Mathf.Abs(syncedSteer.Value - steerAngle) > 0.5f)
             syncedSteer.Value = steerAngle;
 
-        // Napęd na tylne koła
+        // Napęd i systemy silnika
         float driveTorque = CalculateDriveTorque(throttle);
         UpdateFuel(throttle);
         UpdateTemperature(throttle);
         UpdateWear(throttle);
+        UpdateElectrics();
         FlushEngineState();
+
         rearLeft.motorTorque = driveTorque * 0.5f;
         rearRight.motorTorque = driveTorque * 0.5f;
 
-        // Hamulce: zwykły na wszystkie koła, ręczny na tył
-        float brake = HasDriver ? footBrake * brakeTorque : brakeTorque;
+        // Moment na kołach nie budzi uśpionego Rigidbody, więc budzimy je sami
+        if (Mathf.Abs(driveTorque) > 1f || Mathf.Abs(steerAngle) > 0.1f)
+            rb.WakeUp();
+
+        // Hamulce: zwykły na wszystkie koła, ręczny i "trzymanie na biegu" na tył
+        float brake = footBrake * brakeTorque;
         frontLeft.brakeTorque = brake;
         frontRight.brakeTorque = brake;
 
-        float rearBrake = handbrake ? handbrakeTorque : brake;
+        float rearBrake = brake;
+        if (handbrakeOn.Value) rearBrake = Mathf.Max(rearBrake, handbrakeTorque);
+        if (gearHolding) rearBrake = Mathf.Max(rearBrake, brakeTorque);
         rearLeft.brakeTorque = rearBrake;
         rearRight.brakeTorque = rearBrake;
 
-        // Opór powietrza rośnie z kwadratem prędkości
+        // Opór powietrza
         Vector3 v = rb.linearVelocity;
+
+        // Opór toczenia: stała siła przeciwna do ruchu (masa × g × współczynnik)
+        if (v.magnitude > 0.1f)
+            rb.AddForce(-v.normalized * rollingResistance * rb.mass * 9.81f);
+
+        // Opór powietrza rośnie z kwadratem prędkości
         rb.AddForce(-v * v.magnitude * airDrag);
     }
 
@@ -282,39 +321,55 @@ public class CarController : NetworkBehaviour
 
         if (engine == null)
         {
-            if (engineOn.Value) engineOn.Value = false; // ktoś wyjął silnik
+            if (engineOn.Value) engineOn.Value = false;
             engineRpm = 0f;
+            rollEngineRpm = 0f;
             engineRunning = false;
+            gearHolding = false;
             return 0f;
         }
 
-        // Czy silnik może pracować: paliwo, jego jakość, stan silnika
+        // Czy silnik może pracować
         fuelQuality = 0f;
         if (tank != null && tank.HasFuel)
             engine.EvaluateFuel(tank.contents.Value, out fuelQuality, out _);
 
         bool canRun = fuelQuality >= 0.2f && engine.health.Value > 0f;
-
-        // Silnik pracował, ale skończyło się paliwo albo się zatarł: gaśnie sam
         if (engineOn.Value && !canRun) engineOn.Value = false;
-
         engineRunning = engineOn.Value && canRun;
 
+        // Bieg
+        int g = box == null ? 0 : Mathf.Clamp(gear.Value, -1, box.gearRatios.Length);
+        if (g != gear.Value) gear.Value = g;
+
+        // Przełożenie i obroty, jakie koła wymuszają na silniku (na luzie zero)
+        float wheelRpm = (rearLeft.rpm + rearRight.rpm) * 0.5f;
+        float totalRatio = 0f;
+        if (g != 0)
+        {
+            float ratio = g > 0 ? box.gearRatios[g - 1] : -box.reverseRatio;
+            totalRatio = ratio * box.finalDrive;
+        }
+        rollEngineRpm = Mathf.Abs(wheelRpm * totalRatio);
+        float rollDir = wheelRpm > 1f ? 1f : (wheelRpm < -1f ? -1f : 0f);
+        // Zgaszony silnik na biegu trzyma auto w miejscu, ale tylko gdy prawie stoi
+        // (dzięki temu odpalanie na pych z jadącego auta dalej działa)
+        gearHolding = !engineRunning && g != 0 && rollEngineRpm < 100f;
+        // Silnik zgaszony
         if (!engineRunning)
         {
-            // Rozrusznik kręci silnikiem na niskich obrotach
-            float target = isCranking ? 250f : 0f;
-            engineRpm = Mathf.Lerp(engineRpm, target, Time.fixedDeltaTime * 4f);
-            return 0f;
+            // Obroty od rozrusznika albo od toczących się kół
+            float crankTarget = isCranking ? 250f * crankStrength : 0f;
+            engineRpm = Mathf.Lerp(engineRpm, Mathf.Max(crankTarget, rollEngineRpm), Time.fixedDeltaTime * 4f);
+
+            // Zgaszony silnik na biegu hamuje kompresją
+            float compression = engine.engineBraking * 1.5f * Mathf.Clamp01(rollEngineRpm / engine.maxRpm);
+            return -compression * Mathf.Abs(totalRatio) * rollDir;
         }
 
         float healthFactor = engine.health.Value / 100f;
         float powerFactor = fuelQuality * Mathf.Lerp(0.4f, 1f, healthFactor);
-
         bool misfire = fuelQuality < 0.85f && Random.value < (0.85f - fuelQuality) * 0.5f;
-
-        int g = box == null ? 0 : Mathf.Clamp(gear.Value, -1, box.gearRatios.Length);
-        if (g != gear.Value) gear.Value = g;
 
         // Luz
         if (g == 0)
@@ -325,11 +380,7 @@ public class CarController : NetworkBehaviour
             return 0f;
         }
 
-        float ratio = g > 0 ? box.gearRatios[g - 1] : -box.reverseRatio;
-        float totalRatio = ratio * box.finalDrive;
-
-        float wheelRpm = (rearLeft.rpm + rearRight.rpm) * 0.5f;
-        engineRpm = Mathf.Max(Mathf.Abs(wheelRpm * totalRatio), engine.idleRpm);
+        engineRpm = Mathf.Max(rollEngineRpm, engine.idleRpm);
 
         if (box.automatic && g >= 1 && Time.time - lastShiftTime > 0.8f)
         {
@@ -354,8 +405,6 @@ public class CarController : NetworkBehaviour
         float braking = engine.engineBraking * rpmFactor * (1f - throttle);
         if (engineRpm > engine.maxRpm)
             braking += engine.engineBraking * 3f;
-
-        float rollDir = wheelRpm > 1f ? 1f : (wheelRpm < -1f ? -1f : 0f);
 
         float driveAtWheels = torque * totalRatio * drivetrainEfficiency;
         float brakeAtWheels = braking * Mathf.Abs(totalRatio) * rollDir;
@@ -427,6 +476,16 @@ public class CarController : NetworkBehaviour
         if (radiator != null && engineTemp > boilTemperature)
             pendingCoolantLoss += 0.05f * dt;
     }
+    void UpdateElectrics()
+    {
+        BatteryPart battery = GetBattery();
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        if (battery == null || engine == null || !engineRunning) return;
+
+        // Alternator ładuje: na jałowym trochę słabiej, od 1.5x jałowych pełną mocą
+        float alternatorFactor = Mathf.Clamp01(engineRpm / (engine.idleRpm * 1.5f));
+        pendingBatteryDelta += engine.alternatorOutput * alternatorFactor * Time.fixedDeltaTime;
+    }
 
     void FlushEngineState()
     {
@@ -441,19 +500,21 @@ public class CarController : NetworkBehaviour
             hasEngine ? oilTemp : -1f,
             pendingCoolantLoss,
             pendingOilDegrade,
-            pendingOilBurn);
+            pendingOilBurn,
+            pendingBatteryDelta);
 
         pendingFuel = 0f;
         pendingDamage = 0f;
         pendingCoolantLoss = 0f;
         pendingOilDegrade = 0f;
         pendingOilBurn = 0f;
+        pendingBatteryDelta = 0f;
         fuelFlushTimer = 0f;
     }
 
     [ServerRpc]
     void SyncEngineStateServerRpc(float fuelUsed, float engineDamage, float temperature, float oilTemperature,
-                                  float coolantLost, float oilDegraded, float oilBurned)
+                                  float coolantLost, float oilDegraded, float oilBurned, float batteryDelta)
     {
         FuelContainer tank = GetFuelTank();
         if (tank != null) tank.ServerTake(fuelUsed);
@@ -474,6 +535,9 @@ public class CarController : NetworkBehaviour
 
         RadiatorPart radiator = GetRadiator();
         if (radiator != null && coolantLost > 0f) radiator.liquid.ServerTake(coolantLost);
+
+        BatteryPart battery = GetBattery();
+        if (battery != null && batteryDelta != 0f) battery.ServerAddCharge(batteryDelta);
     }
 
     // ---------- Wygląd kół ----------
@@ -511,6 +575,7 @@ public class CarController : NetworkBehaviour
         if (engineOn.Value)
         {
             isCranking = false;
+            crankStrength = 0f;
             if (kb.rKey.wasPressedThisFrame)
             {
                 engineOn.Value = false;
@@ -519,23 +584,46 @@ public class CarController : NetworkBehaviour
             return;
         }
 
-        // Silnik zgaszony: trzymanie R kręci rozrusznikiem
         isCranking = kb.rKey.isPressed && !ignitionLocked;
         if (!isCranking)
+        {
+            crankTimer = 0f;
+            crankStrength = 0f;
+            return;
+        }
+
+        BatteryPart battery = GetBattery();
+        EnginePart engine = parts.GetMounted<EnginePart>();
+
+        // Siła rozrusznika zależy od akumulatora: pełna od 50%, zero poniżej 10%
+        float batteryStrength = battery != null ? Mathf.Clamp01((GetCharge(battery) - 10f) / 40f) : 0f;
+
+        // Na pych: koła kręcą silnikiem przez wrzucony bieg
+        float pushStrength = Mathf.Clamp01(rollEngineRpm / 600f);
+
+        crankStrength = Mathf.Max(batteryStrength, pushStrength);
+
+        // Rozrusznik pobiera prąd
+        if (battery != null && engine != null && GetCharge(battery) > 0f)
+            pendingBatteryDelta -= engine.starterDrain * Time.deltaTime;
+
+        // Za słabo, żeby obrócić silnik: rozrusznik tylko klika
+        if (crankStrength < 0.25f)
         {
             crankTimer = 0f;
             return;
         }
 
-        crankTimer += Time.deltaTime;
+        // Słabszy rozrusznik = dłuższy rozruch
+        crankTimer += Time.deltaTime * crankStrength;
 
-        // Gdy silnik nie może odpalić (brak paliwa itp.), rozrusznik po prostu kręci dalej
         if (CanStart(out float requiredTime) && crankTimer >= requiredTime)
         {
             engineOn.Value = true;
             crankTimer = 0f;
             ignitionLocked = true;
             isCranking = false;
+            crankStrength = 0f;
         }
     }
 
@@ -548,10 +636,15 @@ public class CarController : NetworkBehaviour
         if (engine == null || engine.health.Value <= 0f) return false;
         if (tank == null || !tank.HasFuel) return false;
 
+        // Benzyna potrzebuje prądu na iskrę, diesel nie
+        BatteryPart battery = GetBattery();
+        bool hasSpark = engine.fuelType == EngineFuelType.Diesel
+                        || (battery != null && GetCharge(battery) > 2f);
+        if (!hasSpark) return false;
+
         engine.EvaluateFuel(tank.contents.Value, out float quality, out _);
         if (quality < 0.2f) return false;
 
-        // Zimny silnik kręci się dłużej, diesel na zimno jeszcze dłużej, złe paliwo też wydłuża
         float cold = Mathf.InverseLerp(70f, ambientTemperature, oilTemp);
         float dieselFactor = engine.fuelType == EngineFuelType.Diesel ? 1.6f : 1f;
         requiredCrankTime = (0.6f + cold * 1.4f * dieselFactor) / quality;
@@ -561,7 +654,7 @@ public class CarController : NetworkBehaviour
     string GetEngineStateText()
     {
         if (engineRunning) return "";
-        if (isCranking) return "  |  ROZRUCH...";
+        if (isCranking) return crankStrength < 0.25f ? "  |  KLIK..." : "  |  ROZRUCH...";
         return "  |  ZGASZONY";
     }
 
@@ -571,6 +664,8 @@ public class CarController : NetworkBehaviour
         {
             HandleShiftInput();
             HandleIgnitionInput();
+            if (Keyboard.current.spaceKey.wasPressedThisFrame)
+                handbrakeOn.Value = !handbrakeOn.Value;
         }
         else
         {
@@ -653,7 +748,12 @@ public class CarController : NetworkBehaviour
                         : (box != null && box.automatic ? "D" + g : g.ToString());
 
         GUI.Label(new Rect(20, 20, 400, 25), $"{kmh:0} km/h");
-
+        if (handbrakeOn.Value)
+        {
+            GUI.color = Color.red;
+            GUI.Label(new Rect(120, 20, 200, 25), "(P) RĘCZNY");
+            GUI.color = Color.white;
+        }
         // Silnik
         if (engine != null)
         {
@@ -719,14 +819,34 @@ public class CarController : NetworkBehaviour
         {
             GUI.Label(new Rect(20, 145, 500, 25), $"Olej: w paliwie (dwusuw)  |  {oilTemp:0}°C");
         }
+        // Akumulator
+        BatteryPart battery = GetBattery();
+        if (battery != null)
+        {
+            float charge = GetCharge(battery);
+            if (charge < 20f) GUI.color = Color.red;
+            else if (charge < 40f) GUI.color = Color.yellow;
 
+            string charging = engineRunning ? "  (ładowanie)" : "";
+            GUI.Label(new Rect(20, 170, 500, 25), $"{battery.batteryName}: {charge:0}%{charging}");
+            GUI.color = Color.white;
+        }
+        else
+        {
+            GUI.Label(new Rect(20, 170, 500, 25), "BRAK AKUMULATORA");
+        }
         // Ostrzeżenia, od najważniejszego
         string warning = null;
         Color warningColor = Color.yellow;
         float rpmFactor = engine != null ? engineRpm / engine.maxRpm : 0f;
         float cold = Mathf.InverseLerp(70f, ambientTemperature, oilTemp);
 
-        if (engine != null && engineTemp > overheatTemperature)
+        if (isCranking && crankStrength < 0.25f)
+        {
+            warning = "Akumulator za słaby! Rozrusznik tylko klika";
+            warningColor = Color.red;
+        }
+        else if (engine != null && engineTemp > overheatTemperature)
         {
             warning = "PRZEGRZANIE! Silnik się niszczy!";
             warningColor = Color.red;
@@ -766,11 +886,20 @@ public class CarController : NetworkBehaviour
         if (warning != null)
         {
             GUI.color = warningColor;
-            GUI.Label(new Rect(20, 170, 500, 25), warning);
+            GUI.Label(new Rect(20, 195, 500, 25), warning);
             GUI.color = Color.white;
         }
 
-        GUI.Label(new Rect(20, 195, 600, 25),
-            "R (przytrzymaj) odpal/zgaś, W gaz, S hamulec, Spacja ręczny, Shift/Ctrl bieg");
+        GUI.Label(new Rect(20, 220, 600, 25),
+            "R (przytrzymaj) odpal/zgaś, W gaz, S hamulec, Spacja ręczny (przełącz), Shift/Ctrl bieg");
+
+        // DIAGNOSTYKA - usuniemy, gdy znajdziemy problem
+        GUI.color = Color.magenta;
+        GUI.Label(new Rect(20, 250, 900, 25),
+            $"motor: {rearLeft.motorTorque:0} Nm | hamulec tył: {rearLeft.brakeTorque:0} Nm | " +
+            $"rpm koła: {rearLeft.rpm:0} | na ziemi: {rearLeft.isGrounded} | " +
+            $"śpi: {rb.IsSleeping()} | kinematyczne: {rb.isKinematic}");
+        GUI.color = Color.white;
+        //////
     }
 }

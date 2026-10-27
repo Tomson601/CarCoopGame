@@ -89,6 +89,14 @@ PrefabInstance:
       value: 6.5
       objectReference: {fileID: 0}
     - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+      propertyPath: starterDrain
+      value: 3
+      objectReference: {fileID: 0}
+    - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+      propertyPath: alternatorOutput
+      value: 0.4
+      objectReference: {fileID: 0}
+    - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
       propertyPath: maxFuelConsumption
       value: 45
       objectReference: {fileID: 0}

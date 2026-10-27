@@ -81,6 +81,10 @@ PrefabInstance:
       value: 3.5
       objectReference: {fileID: 0}
     - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+      propertyPath: starterDrain
+      value: 3.5
+      objectReference: {fileID: 0}
+    - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
       propertyPath: maxFuelConsumption
       value: 15
       objectReference: {fileID: 0}
