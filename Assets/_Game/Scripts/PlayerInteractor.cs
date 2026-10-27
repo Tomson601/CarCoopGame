@@ -49,6 +49,8 @@ public class PlayerInteractor : MonoBehaviour
 
             // Czekamy, aż host odda nam własność
             if (!heldNet.IsOwner) return;
+            // Koło jeszcze siedzi w aucie, czekamy na odkręcenie
+            if (held.rb.isKinematic) return;
         }
 
         Vector3 toTarget = holdPoint.position - held.rb.position;
@@ -69,13 +71,14 @@ public class PlayerInteractor : MonoBehaviour
         NetworkPickup np = p.GetComponent<NetworkPickup>();
         if (np != null && np.holderId.Value != NetworkPickup.NoHolder) return; // ktoś trzyma
 
-        WheelPart wheel = p.GetComponent<WheelPart>();
-        if (wheel != null && wheel.currentSlot != null)
-            wheel.currentSlot.Detach();
-
         held = p;
         heldNet = np;
-        if (np != null) np.RequestPickupServerRpc();
+
+        WheelPart wheel = p.GetComponent<WheelPart>();
+        if (wheel != null && wheel.IsMounted)
+            wheel.currentCar.RequestDetachServerRpc(wheel.slotIndex); // odkręć i daj mi
+        else if (np != null)
+            np.RequestPickupServerRpc();
 
         held.rb.useGravity = false;
         SetIgnorePlayer(true);
@@ -107,25 +110,27 @@ public class PlayerInteractor : MonoBehaviour
     bool TryMount()
     {
         WheelPart wheel = held.GetComponent<WheelPart>();
-        if (wheel == null) return false;
+        if (wheel == null || heldNet == null || !heldNet.IsOwner) return false;
 
-        WheelSlot best = null;
+        // Najbliższy pusty slot we wszystkich autach
+        CarWheels bestCar = null;
+        int bestSlot = -1;
         float bestDist = float.MaxValue;
-        foreach (WheelSlot slot in FindObjectsByType<WheelSlot>(FindObjectsSortMode.None))
+
+        foreach (CarWheels car in FindObjectsByType<CarWheels>(FindObjectsSortMode.None))
         {
-            if (!slot.IsEmpty) continue;
-            float d = Vector3.Distance(slot.transform.position, held.transform.position);
-            if (d < slot.snapDistance && d < bestDist)
+            if (car.TryFindEmptySlot(held.transform.position, out int slot, out float dist) && dist < bestDist)
             {
-                best = slot;
-                bestDist = d;
+                bestCar = car;
+                bestSlot = slot;
+                bestDist = dist;
             }
         }
 
-        if (best == null) return false;
+        if (bestCar == null) return false;
 
-        Drop();
-        best.Mount(wheel);
+        bestCar.RequestMountServerRpc(bestSlot, heldNet.NetworkObject);
+        CancelHold(); // bez ReleaseServerRpc, bo host zwolni koło przy montażu
         return true;
     }
 

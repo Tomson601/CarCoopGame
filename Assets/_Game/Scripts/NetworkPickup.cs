@@ -25,12 +25,17 @@ public class NetworkPickup : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void RequestPickupServerRpc(ServerRpcParams rpcParams = default)
     {
-        ulong sender = rpcParams.Receive.SenderClientId;
-        if (holderId.Value != NoHolder) return; // ktoś już trzyma
+        ServerGiveTo(rpcParams.Receive.SenderClientId);
+    }
 
-        holderId.Value = sender;
-        if (OwnerClientId != sender)
-            NetworkObject.ChangeOwnership(sender);
+    // Wywoływane tylko na hoście: daj przedmiot do ręki graczowi
+    public void ServerGiveTo(ulong clientId)
+    {
+        if (holderId.Value != NoHolder) return;
+
+        holderId.Value = clientId;
+        if (OwnerClientId != clientId)
+            NetworkObject.ChangeOwnership(clientId);
     }
 
     [ServerRpc(RequireOwnership = false)]

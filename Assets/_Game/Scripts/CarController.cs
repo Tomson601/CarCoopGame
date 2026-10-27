@@ -36,6 +36,12 @@ public class CarController : NetworkBehaviour
 
     // Kto siedzi w którym fotelu. Widzą wszyscy, zmienia tylko host.
     private NetworkList<ulong> occupants;
+    // Kąt skrętu przesyłany od kierowcy do pozostałych (tylko do wyglądu kół)
+    private NetworkVariable<float> syncedSteer = new NetworkVariable<float>(
+        0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+
+    private float[] wheelSpin = new float[4];
+    private Vector3 lastPosition;
 
     private FirstPersonController[] seatedPlayers;
     private Rigidbody rb;
@@ -192,6 +198,9 @@ public class CarController : NetworkBehaviour
         float steerAngle = steer * maxSteerAngle;
         frontLeft.steerAngle = steerAngle;
         frontRight.steerAngle = steerAngle;
+        // Wysyłaj tylko przy wyraźnej zmianie, żeby nie zaśmiecać sieci
+        if (Mathf.Abs(syncedSteer.Value - steerAngle) > 0.5f)
+            syncedSteer.Value = steerAngle;
 
         rearLeft.motorTorque = throttle * motorTorque;
         rearRight.motorTorque = throttle * motorTorque;
@@ -205,16 +214,33 @@ public class CarController : NetworkBehaviour
 
     void Update()
     {
-        UpdateWheelVisual(frontLeft, frontLeftVisual);
-        UpdateWheelVisual(frontRight, frontRightVisual);
-        UpdateWheelVisual(rearLeft, rearLeftVisual);
-        UpdateWheelVisual(rearRight, rearRightVisual);
+        // U obserwatora prędkość liczymy z przesunięcia auta między klatkami
+        Vector3 velocity = (transform.position - lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
+        lastPosition = transform.position;
+        float forwardSpeed = Vector3.Dot(velocity, transform.forward);
+
+        bool simulated = !IsSpawned || IsOwner;
+
+        UpdateWheelVisual(frontLeft, frontLeftVisual, 0, true, simulated, forwardSpeed);
+        UpdateWheelVisual(frontRight, frontRightVisual, 1, true, simulated, forwardSpeed);
+        UpdateWheelVisual(rearLeft, rearLeftVisual, 2, false, simulated, forwardSpeed);
+        UpdateWheelVisual(rearRight, rearRightVisual, 3, false, simulated, forwardSpeed);
     }
 
-    void UpdateWheelVisual(WheelCollider col, Transform visual)
+    void UpdateWheelVisual(WheelCollider col, Transform visual, int index, bool isFront, bool simulated, float forwardSpeed)
     {
         if (!col.enabled) return;
+
         col.GetWorldPose(out Vector3 pos, out Quaternion rot);
+
+        if (!simulated)
+        {
+            // Obrót koła: prędkość / promień, przeliczone na stopnie
+            wheelSpin[index] += forwardSpeed / col.radius * Mathf.Rad2Deg * Time.deltaTime;
+            float steer = isFront ? syncedSteer.Value : 0f;
+            rot = transform.rotation * Quaternion.Euler(wheelSpin[index], steer, 0f);
+        }
+
         visual.SetPositionAndRotation(pos, rot);
     }
 
