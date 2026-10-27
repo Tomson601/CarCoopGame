@@ -33,6 +33,9 @@ public class CarController : NetworkBehaviour
 
     [Header("Napęd")]
     [Range(0.5f, 1f)] public float drivetrainEfficiency = 0.85f;
+    [Header("Opory")]
+    [Tooltip("Opór powietrza. Większy = niższa prędkość maksymalna.")]
+    public float airDrag = 0.4f;
 
     [Header("Fotele (0 = kierowca)")]
     public Seat[] seats;
@@ -48,7 +51,9 @@ public class CarController : NetworkBehaviour
     private Vector3 lastPosition;
 
     // Stan napędu, liczony u właściciela auta
-    private int gear = 0;          // -1 = R, 0 = N, 1..n = biegi
+    // Bieg widoczny w sieci i zachowany po zmianie kierowcy: -1 = R, 0 = N, 1..n
+    private NetworkVariable<int> gear = new NetworkVariable<int>(
+        0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private float engineRpm = 0f;
     private float lastShiftTime;
 
@@ -218,6 +223,10 @@ public class CarController : NetworkBehaviour
         float rearBrake = handbrake ? handbrakeTorque : brake;
         rearLeft.brakeTorque = rearBrake;
         rearRight.brakeTorque = rearBrake;
+
+        // Opór powietrza rośnie z kwadratem prędkości
+        Vector3 v = rb.linearVelocity;
+        rb.AddForce(-v * v.magnitude * airDrag);
     }
 
     float CalculateDriveTorque(float throttle)
@@ -231,44 +240,55 @@ public class CarController : NetworkBehaviour
             return 0f;
         }
 
-        // Bez skrzyni zawsze luz. Po zmianie skrzyni na taką z mniejszą liczbą biegów - przytnij bieg.
-        if (box == null) gear = 0;
-        else gear = Mathf.Clamp(gear, -1, box.gearRatios.Length);
+        // Bez skrzyni zawsze luz. Przy skrzyni z mniejszą liczbą biegów - przytnij bieg.
+        int g = box == null ? 0 : Mathf.Clamp(gear.Value, -1, box.gearRatios.Length);
+        if (g != gear.Value) gear.Value = g;
 
-        // Luz: silnik kręci się swobodnie od gazu, koła nie dostają napędu
-        if (gear == 0)
+        // Luz: silnik kręci się swobodnie od gazu
+        if (g == 0)
         {
             float target = engine.idleRpm + throttle * (engine.maxRpm - engine.idleRpm);
             engineRpm = Mathf.Lerp(engineRpm, target, Time.fixedDeltaTime * 3f);
             return 0f;
         }
 
-        float ratio = gear > 0 ? box.gearRatios[gear - 1] : -box.reverseRatio;
+        float ratio = g > 0 ? box.gearRatios[g - 1] : -box.reverseRatio;
         float totalRatio = ratio * box.finalDrive;
 
-        // Obroty silnika z obrotów kół, nie niżej niż jałowe (uproszczone sprzęgło)
         float wheelRpm = (rearLeft.rpm + rearRight.rpm) * 0.5f;
         engineRpm = Mathf.Max(Mathf.Abs(wheelRpm * totalRatio), engine.idleRpm);
 
         // Automat sam zmienia biegi do przodu
-        if (box.automatic && gear >= 1 && Time.time - lastShiftTime > 0.8f)
+        if (box.automatic && g >= 1 && Time.time - lastShiftTime > 0.8f)
         {
-            if (engineRpm > box.shiftUpRpm && gear < box.gearRatios.Length)
+            if (engineRpm > box.shiftUpRpm && g < box.gearRatios.Length)
             {
-                gear++;
+                gear.Value = g + 1;
                 lastShiftTime = Time.time;
             }
-            else if (engineRpm < box.shiftDownRpm && gear > 1)
+            else if (engineRpm < box.shiftDownRpm && g > 1)
             {
-                gear--;
+                gear.Value = g - 1;
                 lastShiftTime = Time.time;
             }
         }
 
-        // Ogranicznik obrotów
-        if (engineRpm >= engine.maxRpm) return 0f;
+        // Moment od gazu. Ogranicznik: powyżej max RPM silnik odcina paliwo.
+        float torque = engineRpm < engine.maxRpm ? engine.GetTorque(engineRpm) * throttle : 0f;
 
-        return engine.GetTorque(engineRpm) * throttle * totalRatio * drivetrainEfficiency;
+        // Hamowanie silnikiem: tym mocniejsze, im wyższe obroty i mniej gazu
+        float rpmFactor = Mathf.InverseLerp(engine.idleRpm, engine.maxRpm, engineRpm);
+        float braking = engine.engineBraking * rpmFactor * (1f - throttle);
+        if (engineRpm > engine.maxRpm)
+            braking += engine.engineBraking * 3f; // przekręcony silnik po redukcji hamuje mocno
+
+        // Hamowanie działa przeciwnie do kierunku obrotu kół
+        float rollDir = wheelRpm > 1f ? 1f : (wheelRpm < -1f ? -1f : 0f);
+
+        float driveAtWheels = torque * totalRatio * drivetrainEfficiency;
+        float brakeAtWheels = braking * Mathf.Abs(totalRatio) * rollDir;
+
+        return driveAtWheels - brakeAtWheels;
     }
 
     void HandleShiftInput()
@@ -278,18 +298,21 @@ public class CarController : NetworkBehaviour
 
         Keyboard kb = Keyboard.current;
         int maxGear = box.gearRatios.Length;
+        int g = gear.Value;
 
         if (kb.leftShiftKey.wasPressedThisFrame)
         {
-            if (box.automatic) { if (gear <= 0) gear++; }   // R -> N -> D
-            else gear = Mathf.Min(gear + 1, maxGear);
+            if (box.automatic) { if (g <= 0) g++; }   // R -> N -> D
+            else g = Mathf.Min(g + 1, maxGear);
         }
 
         if (kb.leftCtrlKey.wasPressedThisFrame)
         {
-            if (box.automatic) gear = gear >= 1 ? 0 : -1;    // D -> N -> R
-            else gear = Mathf.Max(gear - 1, -1);
+            if (box.automatic) g = g >= 1 ? 0 : -1;    // D -> N -> R
+            else g = Mathf.Max(g - 1, -1);
         }
+
+        if (g != gear.Value) gear.Value = g;
     }
 
     // ---------- Wygląd kół ----------
@@ -336,13 +359,19 @@ public class CarController : NetworkBehaviour
         GearboxPart box = parts.GetMounted<GearboxPart>();
 
         float kmh = rb.linearVelocity.magnitude * 3.6f;
-        string gearText = gear == -1 ? "R"
-                        : gear == 0 ? "N"
-                        : (box != null && box.automatic ? "D" + gear : gear.ToString());
+        int g = gear.Value;
+        string gearText = g == -1 ? "R"
+                        : g == 0 ? "N"
+                        : (box != null && box.automatic ? "D" + g : g.ToString());
 
         GUI.Label(new Rect(20, 20, 400, 25), $"{kmh:0} km/h");
+
+        // Obroty na czerwono przy redline
+        if (engine != null && engineRpm > engine.maxRpm * 0.9f) GUI.color = Color.red;
         GUI.Label(new Rect(20, 45, 400, 25),
             engine != null ? $"{engine.engineName}  |  {engineRpm:0} RPM" : "BRAK SILNIKA");
+        GUI.color = Color.white;
+
         GUI.Label(new Rect(20, 70, 400, 25),
             box != null ? $"{box.gearboxName}  |  Bieg: {gearText}" : "BRAK SKRZYNI");
         GUI.Label(new Rect(20, 95, 500, 25),

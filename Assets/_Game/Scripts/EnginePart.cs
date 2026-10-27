@@ -10,6 +10,8 @@ public class EnginePart : MonoBehaviour
 
     public float idleRpm = 900f;
     public float maxRpm = 6500f;
+    [Tooltip("Moment hamowania silnikiem w Nm przy maksymalnych obrotach, bez gazu")]
+    public float engineBraking = 40f;
 
     [Tooltip("Oś X: obroty (0 = 0 RPM, 1 = max RPM). Oś Y: mnożnik momentu (1 = pełny moment).")]
     public AnimationCurve torqueCurve = new AnimationCurve(
