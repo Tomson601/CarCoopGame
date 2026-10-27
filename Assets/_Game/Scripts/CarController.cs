@@ -27,7 +27,6 @@ public class CarController : NetworkBehaviour
     public Transform rearRightVisual;
 
     [Header("Silnik i hamulce")]
-    public float motorTorque = 1500f;
     public float brakeTorque = 3000f;
     public float maxSteerAngle = 30f;
 
@@ -45,6 +44,7 @@ public class CarController : NetworkBehaviour
 
     private FirstPersonController[] seatedPlayers;
     private Rigidbody rb;
+    private CarParts parts;
 
     public ulong DriverId => GetOccupant(0);
     public bool HasDriver => DriverId != NoOne;
@@ -53,6 +53,7 @@ public class CarController : NetworkBehaviour
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        parts = GetComponent<CarParts>();
         rb.centerOfMass = new Vector3(0, -0.3f, 0);
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
@@ -202,8 +203,12 @@ public class CarController : NetworkBehaviour
         if (Mathf.Abs(syncedSteer.Value - steerAngle) > 0.5f)
             syncedSteer.Value = steerAngle;
 
-        rearLeft.motorTorque = throttle * motorTorque;
-        rearRight.motorTorque = throttle * motorTorque;
+        // Moc z zamontowanego silnika. Bez silnika auto nie jedzie.
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        float torque = engine != null ? engine.maxTorque : 0f;
+
+        rearLeft.motorTorque = throttle * torque;
+        rearRight.motorTorque = throttle * torque;
 
         float brake = (handbrake || !HasDriver) ? brakeTorque : 0f;
         frontLeft.brakeTorque = brake;
@@ -249,5 +254,8 @@ public class CarController : NetworkBehaviour
         if (!IsDrivenByMe) return;
         float kmh = rb.linearVelocity.magnitude * 3.6f;
         GUI.Label(new Rect(20, 20, 200, 30), $"{kmh:0} km/h");
+        EnginePart engineInfo = parts.GetMounted<EnginePart>();
+        string engineText = engineInfo != null ? engineInfo.engineName : "BRAK SILNIKA";
+        GUI.Label(new Rect(20, 45, 300, 30), engineText);
     }
 }

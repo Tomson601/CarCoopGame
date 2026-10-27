@@ -532,8 +532,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WheelSlot
-  wheelCollider: {fileID: 6056400730157474913}
+  acceptedType: 0
   snapDistance: 1
+  wheelCollider: {fileID: 6056400730157474913}
 --- !u!1 &5142706898331026994
 GameObject:
   m_ObjectHideFlags: 0
@@ -578,8 +579,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WheelSlot
+  acceptedType: 0
+  snapDistance: 1
   wheelCollider: {fileID: 2554097824661059408}
-  snapDistance: 1.5
 --- !u!1 &5954712460884326072
 GameObject:
   m_ObjectHideFlags: 0
@@ -695,8 +697,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WheelSlot
-  wheelCollider: {fileID: 3418227431314428788}
+  acceptedType: 0
   snapDistance: 1
+  wheelCollider: {fileID: 3418227431314428788}
 --- !u!1 &6827849760374531655
 GameObject:
   m_ObjectHideFlags: 0
@@ -770,6 +773,7 @@ Transform:
   - {fileID: 9129993738764610845}
   - {fileID: 8586431834520273447}
   - {fileID: 4232920019496249499}
+  - {fileID: 8939319866947661235}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &1571022573881026514
@@ -847,7 +851,6 @@ MonoBehaviour:
   frontRightVisual: {fileID: 5189434940523299461}
   rearLeftVisual: {fileID: 5520262393338615877}
   rearRightVisual: {fileID: 6655640699200365992}
-  motorTorque: 1500
   brakeTorque: 3000
   maxSteerAngle: 30
   seats:
@@ -936,8 +939,13 @@ MonoBehaviour:
   - {fileID: 4251972695214592823}
   - {fileID: 3275409032072641612}
   - {fileID: 7754805910124028695}
-  wheelPrefab: {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
-  spawnWithWheels: 1
+  - {fileID: 3511568253390680303}
+  startingParts:
+  - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
+  - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
+  - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
+  - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
+  - {fileID: 8125677192079327439, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
 --- !u!1 &8856999510651766619
 GameObject:
   m_ObjectHideFlags: 0
@@ -982,5 +990,53 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::WheelSlot
-  wheelCollider: {fileID: 6558736015330658642}
+  acceptedType: 0
   snapDistance: 1
+  wheelCollider: {fileID: 6558736015330658642}
+--- !u!1 &9148892730395336584
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8939319866947661235}
+  - component: {fileID: 3511568253390680303}
+  m_Layer: 0
+  m_Name: EngineSlot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8939319866947661235
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9148892730395336584}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.1, z: 1.3}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7439724132479101271}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &3511568253390680303
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9148892730395336584}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PartSlot
+  acceptedType: 1
+  snapDistance: 1.2
+  wheelCollider: {fileID: 0}

@@ -74,9 +74,9 @@ public class PlayerInteractor : MonoBehaviour
         held = p;
         heldNet = np;
 
-        WheelPart wheel = p.GetComponent<WheelPart>();
-        if (wheel != null && wheel.IsMounted)
-            wheel.currentCar.RequestDetachServerRpc(wheel.slotIndex); // odkręć i daj mi
+        CarPart part = p.GetComponent<CarPart>();
+        if (part != null && part.IsMounted)
+            part.currentCar.RequestDetachServerRpc(part.slotIndex); // odkręć i daj mi
         else if (np != null)
             np.RequestPickupServerRpc();
 
@@ -109,17 +109,16 @@ public class PlayerInteractor : MonoBehaviour
 
     bool TryMount()
     {
-        WheelPart wheel = held.GetComponent<WheelPart>();
-        if (wheel == null || heldNet == null || !heldNet.IsOwner) return false;
+        CarPart part = held.GetComponent<CarPart>();
+        if (part == null || heldNet == null || !heldNet.IsOwner) return false;
 
-        // Najbliższy pusty slot we wszystkich autach
-        CarWheels bestCar = null;
+        CarParts bestCar = null;
         int bestSlot = -1;
         float bestDist = float.MaxValue;
 
-        foreach (CarWheels car in FindObjectsByType<CarWheels>(FindObjectsSortMode.None))
+        foreach (CarParts car in FindObjectsByType<CarParts>(FindObjectsSortMode.None))
         {
-            if (car.TryFindEmptySlot(held.transform.position, out int slot, out float dist) && dist < bestDist)
+            if (car.TryFindEmptySlot(held.transform.position, part.type, out int slot, out float dist) && dist < bestDist)
             {
                 bestCar = car;
                 bestSlot = slot;
@@ -130,7 +129,7 @@ public class PlayerInteractor : MonoBehaviour
         if (bestCar == null) return false;
 
         bestCar.RequestMountServerRpc(bestSlot, heldNet.NetworkObject);
-        CancelHold(); // bez ReleaseServerRpc, bo host zwolni koło przy montażu
+        CancelHold();
         return true;
     }
 
