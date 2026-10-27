@@ -21,6 +21,10 @@ public class FirstPersonController : NetworkBehaviour
     private CharacterController controller;
     private float verticalVelocity;
     private float cameraPitch;
+    private Transform seat;
+    private float seatYaw;
+
+    public bool IsSeated => seat != null;
 
     public override void OnNetworkSpawn()
     {
@@ -56,12 +60,40 @@ public class FirstPersonController : NetworkBehaviour
         HandleLook();
         if (canMove) HandleMovement();
     }
+    void LateUpdate()
+    {
+        if (seat == null) return;
 
+        // Postać zawsze dokładnie w fotelu, u wszystkich graczy
+        transform.position = seat.position;
+
+        // Własny gracz: obrót = obrót auta + rozglądanie się na boki
+        if (IsOwner)
+            transform.rotation = seat.rotation * Quaternion.Euler(0f, seatYaw, 0f);
+    }
+
+    public void SetSeat(Transform newSeat, Transform exitPoint = null)
+    {
+        // Wysiadanie: przenieś się obok auta, zanim włączysz kolizje
+        if (newSeat == null && IsOwner && exitPoint != null)
+        {
+            transform.position = exitPoint.position;
+            transform.rotation = Quaternion.Euler(0f, exitPoint.eulerAngles.y, 0f);
+        }
+
+        seat = newSeat;
+        seatYaw = 0f;
+        controller.enabled = (seat == null);
+        canMove = (seat == null);
+    }
     void HandleLook()
     {
         Vector2 mouseDelta = Mouse.current.delta.ReadValue() * mouseSensitivity;
 
-        transform.Rotate(Vector3.up * mouseDelta.x);
+        if (seat != null)
+            seatYaw = Mathf.Clamp(seatYaw + mouseDelta.x, -120f, 120f); // w aucie: głowa do 120° w bok
+        else
+            transform.Rotate(Vector3.up * mouseDelta.x);
 
         cameraPitch -= mouseDelta.y;
         cameraPitch = Mathf.Clamp(cameraPitch, -maxLookAngle, maxLookAngle);
