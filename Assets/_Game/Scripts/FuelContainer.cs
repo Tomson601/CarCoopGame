@@ -43,6 +43,17 @@ public class FuelContainer : NetworkBehaviour
         contents.Value = current.Minus(taken);
         return taken;
     }
+    // Zamienia świeży olej w zużyty (starzenie się oleju w silniku)
+    public void ServerConvertOil(float liters)
+    {
+        FuelMix c = contents.Value;
+        float amount = Mathf.Min(liters, c.oil);
+        if (amount <= 0f) return;
+
+        c.oil -= amount;
+        c.usedOil += amount;
+        contents.Value = c;
+    }
 
     // ---------- Prośby od graczy ----------
 

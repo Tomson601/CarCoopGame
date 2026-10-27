@@ -149,4 +149,10 @@ public class CarParts : NetworkBehaviour
                 part.transform.SetPositionAndRotation(slots[i].transform.position, slots[i].transform.rotation);
         }
     }
+    public CarPart GetMountedPart(PartType type)
+    {
+        foreach (CarPart part in mountedParts)
+            if (part != null && part.type == type) return part;
+        return null;
+    }
 }

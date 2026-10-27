@@ -14,6 +14,7 @@ GameObject:
   - component: {fileID: 6522759778979725654}
   - component: {fileID: 1329313577967392974}
   - component: {fileID: 8059795772322680426}
+  - component: {fileID: 5224057310923378496}
   - component: {fileID: 5156969250070750451}
   - component: {fileID: 5457449352686878484}
   - component: {fileID: 3470257055484611949}
@@ -145,6 +146,7 @@ MonoBehaviour:
   maxRpm: 6500
   engineBraking: 40
   maxFuelConsumption: 20
+  heatOutput: 4
   torqueCurve:
     serializedVersion: 2
     m_Curve:
@@ -183,6 +185,51 @@ MonoBehaviour:
       MinSecondsBetweenUpdates: 0
       MaxSecondsBetweenUpdates: 0
     m_InternalValue: 100
+  temperature:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue: 20
+  oilDegradeRate: 0.001
+  oilBurnRate: 0.0001
+  oilTemperature:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue: 20
+  sump: {fileID: 0}
+--- !u!114 &5224057310923378496
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8125677192079327439}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c35004ca0b56b14a8e24cf2e2cbf8bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelContainer
+  ShowTopMostFoldoutHeaderGroup: 1
+  capacity: 4
+  startContents:
+    petrol: 0
+    diesel: 0
+    oil: 4
+    coolant: 0
+    usedOil: 0
+  canPourFrom: 1
+  pourRate: 0.5
+  contents:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue:
+      petrol: 0
+      diesel: 0
+      oil: 0
+      coolant: 0
+      usedOil: 0
 --- !u!114 &5156969250070750451
 MonoBehaviour:
   m_ObjectHideFlags: 0

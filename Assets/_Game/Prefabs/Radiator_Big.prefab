@@ -1,0 +1,95 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1001 &5852949312248505800
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1058202154107197268, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: capacity
+      value: 9
+      objectReference: {fileID: 0}
+    - target: {fileID: 1058202154107197268, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: startContents.coolant
+      value: 9
+      objectReference: {fileID: 0}
+    - target: {fileID: 3050064278735443695, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: displayName
+      value: "Ch\u0142odnica sportowa"
+      objectReference: {fileID: 0}
+    - target: {fileID: 4642633203993722059, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_Name
+      value: Radiator_Big
+      objectReference: {fileID: 0}
+    - target: {fileID: 5641174608045168069, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: GlobalObjectIdHash
+      value: 2723947653
+      objectReference: {fileID: 0}
+    - target: {fileID: 7121445542337475016, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 0.8
+      objectReference: {fileID: 0}
+    - target: {fileID: 7121445542337475016, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 0.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 7121445542337475016, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 0.12
+      objectReference: {fileID: 0}
+    - target: {fileID: 8124758912725569870, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: coolingPower
+      value: 1.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8124758912725569870, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: radiatorName
+      value: "Ch\u0142odnica sportowa"
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 9109541108584665551, guid: f4840192fc756f842bec12350f00514d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: f4840192fc756f842bec12350f00514d, type: 3}

@@ -39,6 +39,11 @@ public class CarController : NetworkBehaviour
     [Header("Paliwo")]
     [Tooltip("1 = realistyczne spalanie (bardzo wolno), 10 = szybciej, wygodne do testów")]
     public float fuelGameplayMultiplier = 10f;
+    [Header("Temperatura (°C)")]
+    public float ambientTemperature = 20f;
+    public float thermostatTemperature = 88f;
+    public float overheatTemperature = 110f;
+    public float boilTemperature = 120f;
 
     [Header("Fotele (0 = kierowca)")]
     public Seat[] seats;
@@ -57,6 +62,9 @@ public class CarController : NetworkBehaviour
     // Bieg widoczny w sieci i zachowany po zmianie kierowcy: -1 = R, 0 = N, 1..n
     private NetworkVariable<int> gear = new NetworkVariable<int>(
         0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    // Zapłon: widoczny w sieci i zachowany po zmianie kierowcy
+    private NetworkVariable<bool> engineOn = new NetworkVariable<bool>(
+        false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private float engineRpm = 0f;
     private float lastShiftTime;
     private float pendingFuel;
@@ -64,6 +72,15 @@ public class CarController : NetworkBehaviour
     private float pendingDamage;
     private float fuelQuality = 1f;
     private bool engineRunning;
+    private float engineTemp = 20f;
+    private EnginePart tempEngine;
+    private float pendingCoolantLoss;
+    private float oilTemp = 20f;
+    private float pendingOilDegrade;
+    private float pendingOilBurn;
+    private bool isCranking;
+    private float crankTimer;
+    private bool ignitionLocked; // żeby trzymanie R po odpaleniu/zgaszeniu nie przełączało dalej
 
     public ulong DriverId => GetOccupant(0);
     public bool HasDriver => DriverId != NoOne;
@@ -189,11 +206,27 @@ public class CarController : NetworkBehaviour
         return null;
     }
 
+    FuelContainer GetFuelTank()
+    {
+        CarPart part = parts.GetMountedPart(PartType.FuelTank);
+        return part != null ? part.GetComponent<FuelContainer>() : null;
+    }
+
+    RadiatorPart GetRadiator()
+    {
+        CarPart part = parts.GetMountedPart(PartType.Radiator);
+        return part != null ? part.GetComponent<RadiatorPart>() : null;
+    }
+
     // ---------- Jazda ----------
 
     void FixedUpdate()
     {
-        if (!IsSpawned || !IsOwner) return;
+        if (!IsSpawned || !IsOwner)
+        {
+            tempEngine = null; // gdy znowu przejmiemy auto, weźmiemy temperaturę od hosta
+            return;
+        }
 
         float throttle = 0f;
         float footBrake = 0f;
@@ -221,6 +254,9 @@ public class CarController : NetworkBehaviour
         // Napęd na tylne koła
         float driveTorque = CalculateDriveTorque(throttle);
         UpdateFuel(throttle);
+        UpdateTemperature(throttle);
+        UpdateWear(throttle);
+        FlushEngineState();
         rearLeft.motorTorque = driveTorque * 0.5f;
         rearRight.motorTorque = driveTorque * 0.5f;
 
@@ -242,32 +278,39 @@ public class CarController : NetworkBehaviour
     {
         EnginePart engine = parts.GetMounted<EnginePart>();
         GearboxPart box = parts.GetMounted<GearboxPart>();
-        FuelContainer tank = parts.GetMounted<FuelContainer>();
+        FuelContainer tank = GetFuelTank();
 
         if (engine == null)
         {
+            if (engineOn.Value) engineOn.Value = false; // ktoś wyjął silnik
             engineRpm = 0f;
             engineRunning = false;
             return 0f;
         }
 
-        // Czy silnik w ogóle może pracować: paliwo, jego jakość, stan silnika
+        // Czy silnik może pracować: paliwo, jego jakość, stan silnika
         fuelQuality = 0f;
         if (tank != null && tank.HasFuel)
             engine.EvaluateFuel(tank.contents.Value, out fuelQuality, out _);
 
-        engineRunning = fuelQuality >= 0.2f && engine.health.Value > 0f;
+        bool canRun = fuelQuality >= 0.2f && engine.health.Value > 0f;
+
+        // Silnik pracował, ale skończyło się paliwo albo się zatarł: gaśnie sam
+        if (engineOn.Value && !canRun) engineOn.Value = false;
+
+        engineRunning = engineOn.Value && canRun;
+
         if (!engineRunning)
         {
-            engineRpm = Mathf.Lerp(engineRpm, 0f, Time.fixedDeltaTime * 2f);
+            // Rozrusznik kręci silnikiem na niskich obrotach
+            float target = isCranking ? 250f : 0f;
+            engineRpm = Mathf.Lerp(engineRpm, target, Time.fixedDeltaTime * 4f);
             return 0f;
         }
 
-        // Moc zależy od jakości paliwa i stanu silnika
         float healthFactor = engine.health.Value / 100f;
         float powerFactor = fuelQuality * Mathf.Lerp(0.4f, 1f, healthFactor);
 
-        // Złe paliwo: silnik losowo "przerywa"
         bool misfire = fuelQuality < 0.85f && Random.value < (0.85f - fuelQuality) * 0.5f;
 
         int g = box == null ? 0 : Mathf.Clamp(gear.Value, -1, box.gearRatios.Length);
@@ -323,40 +366,117 @@ public class CarController : NetworkBehaviour
     void UpdateFuel(float throttle)
     {
         EnginePart engine = parts.GetMounted<EnginePart>();
-        FuelContainer tank = parts.GetMounted<FuelContainer>();
+        FuelContainer tank = GetFuelTank();
 
-        if (engineRunning && engine != null && tank != null)
+        if (!engineRunning || engine == null || tank == null) return;
+
+        float load = 0.15f + 0.85f * throttle;
+        float rpmFactor = engineRpm / engine.maxRpm;
+        float litersPerHour = engine.maxFuelConsumption * load * rpmFactor;
+        pendingFuel += litersPerHour / 3600f * fuelGameplayMultiplier * Time.fixedDeltaTime;
+
+        engine.EvaluateFuel(tank.contents.Value, out _, out float damage);
+        pendingDamage += damage * Mathf.Max(rpmFactor, 0.2f) * Time.fixedDeltaTime;
+    }
+
+    void UpdateTemperature(float throttle)
+    {
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        if (engine == null)
         {
-            float load = 0.15f + 0.85f * throttle;
+            tempEngine = null;
+            return;
+        }
+
+        // Nowy silnik albo właśnie przejęliśmy auto: zacznij od temperatur z sieci
+        if (engine != tempEngine)
+        {
+            tempEngine = engine;
+            engineTemp = engine.temperature.Value;
+            oilTemp = engine.oilTemperature.Value;
+        }
+
+        float dt = Time.fixedDeltaTime;
+
+        float heat = 0f;
+        if (engineRunning)
+        {
             float rpmFactor = engineRpm / engine.maxRpm;
-            float litersPerHour = engine.maxFuelConsumption * load * rpmFactor;
-            pendingFuel += litersPerHour / 3600f * fuelGameplayMultiplier * Time.fixedDeltaTime;
-
-            // Niszczenie silnika złym paliwem, mocniej na wysokich obrotach
-            engine.EvaluateFuel(tank.contents.Value, out _, out float damage);
-            pendingDamage += damage * Mathf.Max(rpmFactor, 0.2f) * Time.fixedDeltaTime;
+            heat = engine.heatOutput * (0.2f + 0.8f * throttle) * rpmFactor;
         }
 
-        fuelFlushTimer += Time.fixedDeltaTime;
-        if (fuelFlushTimer >= 1f)
+        float cooling = (engineTemp - ambientTemperature) * 0.004f;
+
+        RadiatorPart radiator = GetRadiator();
+        if (radiator != null && engineTemp > thermostatTemperature)
         {
-            if (pendingFuel > 0f || pendingDamage > 0f)
-                ConsumeFuelServerRpc(pendingFuel, pendingDamage);
-            pendingFuel = 0f;
-            pendingDamage = 0f;
-            fuelFlushTimer = 0f;
+            float speed = rb.linearVelocity.magnitude;
+            float airflow = 0.35f + Mathf.Clamp01(speed / 25f);
+            cooling += radiator.coolingPower * radiator.CoolantFactor * airflow
+                       * (engineTemp - ambientTemperature) * 0.035f;
         }
+
+        engineTemp = Mathf.Max(ambientTemperature, engineTemp + (heat - cooling) * dt);
+
+        // Olej powoli "goni" temperaturę silnika
+        oilTemp = Mathf.Max(ambientTemperature, oilTemp + (engineTemp - oilTemp) * 0.02f * dt);
+
+        if (engineTemp > overheatTemperature)
+            pendingDamage += (engineTemp - overheatTemperature) * 0.1f * dt;
+
+        if (radiator != null && engineTemp > boilTemperature)
+            pendingCoolantLoss += 0.05f * dt;
+    }
+
+    void FlushEngineState()
+    {
+        fuelFlushTimer += Time.fixedDeltaTime;
+        if (fuelFlushTimer < 1f) return;
+
+        bool hasEngine = parts.GetMounted<EnginePart>() != null;
+        SyncEngineStateServerRpc(
+            pendingFuel,
+            pendingDamage,
+            hasEngine ? engineTemp : -1f,
+            hasEngine ? oilTemp : -1f,
+            pendingCoolantLoss,
+            pendingOilDegrade,
+            pendingOilBurn);
+
+        pendingFuel = 0f;
+        pendingDamage = 0f;
+        pendingCoolantLoss = 0f;
+        pendingOilDegrade = 0f;
+        pendingOilBurn = 0f;
+        fuelFlushTimer = 0f;
     }
 
     [ServerRpc]
-    void ConsumeFuelServerRpc(float liters, float engineDamage)
+    void SyncEngineStateServerRpc(float fuelUsed, float engineDamage, float temperature, float oilTemperature,
+                                  float coolantLost, float oilDegraded, float oilBurned)
     {
-        FuelContainer tank = parts.GetMounted<FuelContainer>();
-        if (tank != null) tank.ServerTake(liters);
+        FuelContainer tank = GetFuelTank();
+        if (tank != null) tank.ServerTake(fuelUsed);
 
         EnginePart engine = parts.GetMounted<EnginePart>();
-        if (engine != null) engine.ServerDamage(engineDamage);
+        if (engine != null)
+        {
+            engine.ServerDamage(engineDamage);
+            if (temperature >= 0f) engine.temperature.Value = temperature;
+            if (oilTemperature >= 0f) engine.oilTemperature.Value = oilTemperature;
+
+            if (engine.sump != null)
+            {
+                engine.sump.ServerConvertOil(oilDegraded);
+                engine.sump.ServerTake(oilBurned);
+            }
+        }
+
+        RadiatorPart radiator = GetRadiator();
+        if (radiator != null && coolantLost > 0f) radiator.liquid.ServerTake(coolantLost);
     }
+
+    // ---------- Wygląd kół ----------
     void HandleShiftInput()
     {
         GearboxPart box = parts.GetMounted<GearboxPart>();
@@ -381,11 +501,81 @@ public class CarController : NetworkBehaviour
         if (g != gear.Value) gear.Value = g;
     }
 
-    // ---------- Wygląd kół ----------
+    void HandleIgnitionInput()
+    {
+        Keyboard kb = Keyboard.current;
+
+        if (kb.rKey.wasReleasedThisFrame) ignitionLocked = false;
+
+        // Silnik pracuje: krótkie R gasi
+        if (engineOn.Value)
+        {
+            isCranking = false;
+            if (kb.rKey.wasPressedThisFrame)
+            {
+                engineOn.Value = false;
+                ignitionLocked = true;
+            }
+            return;
+        }
+
+        // Silnik zgaszony: trzymanie R kręci rozrusznikiem
+        isCranking = kb.rKey.isPressed && !ignitionLocked;
+        if (!isCranking)
+        {
+            crankTimer = 0f;
+            return;
+        }
+
+        crankTimer += Time.deltaTime;
+
+        // Gdy silnik nie może odpalić (brak paliwa itp.), rozrusznik po prostu kręci dalej
+        if (CanStart(out float requiredTime) && crankTimer >= requiredTime)
+        {
+            engineOn.Value = true;
+            crankTimer = 0f;
+            ignitionLocked = true;
+            isCranking = false;
+        }
+    }
+
+    bool CanStart(out float requiredCrankTime)
+    {
+        requiredCrankTime = float.MaxValue;
+
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        FuelContainer tank = GetFuelTank();
+        if (engine == null || engine.health.Value <= 0f) return false;
+        if (tank == null || !tank.HasFuel) return false;
+
+        engine.EvaluateFuel(tank.contents.Value, out float quality, out _);
+        if (quality < 0.2f) return false;
+
+        // Zimny silnik kręci się dłużej, diesel na zimno jeszcze dłużej, złe paliwo też wydłuża
+        float cold = Mathf.InverseLerp(70f, ambientTemperature, oilTemp);
+        float dieselFactor = engine.fuelType == EngineFuelType.Diesel ? 1.6f : 1f;
+        requiredCrankTime = (0.6f + cold * 1.4f * dieselFactor) / quality;
+        return true;
+    }
+
+    string GetEngineStateText()
+    {
+        if (engineRunning) return "";
+        if (isCranking) return "  |  ROZRUCH...";
+        return "  |  ZGASZONY";
+    }
 
     void Update()
     {
-        if (IsSpawned && IsDrivenByMe) HandleShiftInput();
+        if (IsSpawned && IsDrivenByMe)
+        {
+            HandleShiftInput();
+            HandleIgnitionInput();
+        }
+        else
+        {
+            isCranking = false;
+        }
 
         Vector3 velocity = (transform.position - lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
         lastPosition = transform.position;
@@ -414,16 +604,47 @@ public class CarController : NetworkBehaviour
 
         visual.SetPositionAndRotation(pos, rot);
     }
+    void UpdateWear(float throttle)
+    {
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        if (engine == null || !engineRunning) return;
 
+        float dt = Time.fixedDeltaTime;
+        float rpmFactor = engineRpm / engine.maxRpm;
+        float rpm2 = rpmFactor * rpmFactor; // zużycie rośnie szybko z obrotami
+        float load = 0.15f + 0.85f * throttle;
+
+        float cold = Mathf.InverseLerp(70f, ambientTemperature, oilTemp); // 0 = ciepły olej, 1 = zimny
+        float lubrication = engine.GetLubrication();
+
+        float wear = rpm2 * load * 0.02f            // normalne zużycie
+                   + rpm2 * cold * 0.3f              // ostra jazda na zimnym oleju
+                   + rpm2 * (1f - lubrication) * 3f; // mało albo zużyty olej
+
+        if (lubrication < 0.05f) wear += 5f;                       // brak oleju = zatarcie
+        if (rpmFactor > 1.05f) wear += (rpmFactor - 1.05f) * 20f;  // przekręcony silnik
+
+        pendingDamage += wear * dt;
+
+        // Starzenie i spalanie oleju
+        if (engine.UsesSumpOil)
+        {
+            float heatFactor = engineTemp > overheatTemperature ? 3f : 1f;
+            pendingOilDegrade += engine.oilDegradeRate * load * rpmFactor * heatFactor * dt;
+
+            float wornFactor = 1f + (1f - engine.health.Value / 100f) * 5f;
+            pendingOilBurn += engine.oilBurnRate * load * wornFactor * dt;
+        }
+    }
     // ---------- HUD ----------
-
     void OnGUI()
     {
         if (!IsDrivenByMe) return;
 
         EnginePart engine = parts.GetMounted<EnginePart>();
         GearboxPart box = parts.GetMounted<GearboxPart>();
-        FuelContainer tank = parts.GetMounted<FuelContainer>();
+        FuelContainer tank = GetFuelTank();
+        RadiatorPart radiator = GetRadiator();
 
         float kmh = rb.linearVelocity.magnitude * 3.6f;
         int g = gear.Value;
@@ -437,7 +658,7 @@ public class CarController : NetworkBehaviour
         if (engine != null)
         {
             if (engineRpm > engine.maxRpm * 0.9f) GUI.color = Color.red;
-            string state = engineRunning ? "" : "  |  ZGASŁ";
+            string state = GetEngineStateText();
             GUI.Label(new Rect(20, 45, 500, 25),
                 $"{engine.engineName}  |  {engineRpm:0} RPM  |  stan {engine.health.Value:0}%{state}");
             GUI.color = Color.white;
@@ -464,30 +685,92 @@ public class CarController : NetworkBehaviour
             GUI.Label(new Rect(20, 95, 400, 25), "BRAK ZBIORNIKA");
         }
 
-        // Ostrzeżenia
-        if (engine != null && tank != null && tank.HasFuel)
+        // Temperatura i chłodnica
+        if (engine != null)
+        {
+            if (engineTemp > overheatTemperature) GUI.color = Color.red;
+            else if (engineTemp > overheatTemperature - 8f) GUI.color = Color.yellow;
+            else if (engineTemp < 60f) GUI.color = Color.cyan;
+
+            string radiatorText = radiator != null
+                ? $"{radiator.radiatorName}: {radiator.liquid.Liters:0.0} / {radiator.liquid.capacity:0} L"
+                : "BRAK CHŁODNICY";
+            GUI.Label(new Rect(20, 120, 500, 25), $"Temp: {engineTemp:0}°C  |  {radiatorText}");
+            GUI.color = Color.white;
+        }
+
+        // Olej
+        float lubrication = engine != null ? engine.GetLubrication() : 1f;
+        float freshPercent = 100f;
+        if (engine != null && engine.UsesSumpOil && engine.sump != null)
+        {
+            FuelMix m = engine.sump.contents.Value;
+            float anyOil = m.oil + m.usedOil;
+            freshPercent = anyOil > 0f ? m.oil / anyOil * 100f : 0f;
+
+            if (lubrication < 0.5f) GUI.color = Color.red;
+            else if (oilTemp < 60f) GUI.color = Color.cyan;
+
+            GUI.Label(new Rect(20, 145, 500, 25),
+                $"Olej: {anyOil:0.0} / {engine.sump.capacity:0.0} L  (świeży {freshPercent:0}%)  |  {oilTemp:0}°C");
+            GUI.color = Color.white;
+        }
+        else if (engine != null)
+        {
+            GUI.Label(new Rect(20, 145, 500, 25), $"Olej: w paliwie (dwusuw)  |  {oilTemp:0}°C");
+        }
+
+        // Ostrzeżenia, od najważniejszego
+        string warning = null;
+        Color warningColor = Color.yellow;
+        float rpmFactor = engine != null ? engineRpm / engine.maxRpm : 0f;
+        float cold = Mathf.InverseLerp(70f, ambientTemperature, oilTemp);
+
+        if (engine != null && engineTemp > overheatTemperature)
+        {
+            warning = "PRZEGRZANIE! Silnik się niszczy!";
+            warningColor = Color.red;
+        }
+        else if (engine != null && engine.UsesSumpOil && lubrication < 0.3f)
+        {
+            warning = "NISKI POZIOM OLEJU! Silnik się zaciera!";
+            warningColor = Color.red;
+        }
+        else if (engine != null && engineRunning && rpmFactor > 1.05f)
+        {
+            warning = "Przekręcasz silnik!";
+            warningColor = Color.red;
+        }
+        else if (engine != null && engineRunning && cold > 0.3f && rpmFactor > 0.6f)
+        {
+            warning = "Zimny olej, nie kręć wysoko!";
+        }
+        else if (engine != null && tank != null && tank.HasFuel)
         {
             engine.EvaluateFuel(tank.contents.Value, out float quality, out float damage);
 
             if (!engineRunning && quality < 0.2f)
-            {
-                GUI.color = Color.yellow;
-                GUI.Label(new Rect(20, 120, 500, 25), "Silnik nie chce pracować na tym paliwie");
-            }
+                warning = "Silnik nie chce pracować na tym paliwie";
             else if (engineRunning && damage > 0.05f)
             {
-                GUI.color = Color.red;
-                GUI.Label(new Rect(20, 120, 500, 25), "Silnik się niszczy! Złe paliwo!");
+                warning = "Silnik się niszczy! Złe paliwo!";
+                warningColor = Color.red;
             }
             else if (engineRunning && quality < 0.85f)
-            {
-                GUI.color = Color.yellow;
-                GUI.Label(new Rect(20, 120, 500, 25), "Silnik przerywa, złe paliwo");
-            }
+                warning = "Silnik przerywa, złe paliwo";
+        }
+
+        if (warning == null && engine != null && engine.UsesSumpOil && freshPercent < 40f)
+            warning = "Olej do wymiany";
+
+        if (warning != null)
+        {
+            GUI.color = warningColor;
+            GUI.Label(new Rect(20, 170, 500, 25), warning);
             GUI.color = Color.white;
         }
 
-        GUI.Label(new Rect(20, 145, 500, 25),
-            "W gaz, S hamulec, Spacja ręczny, Shift/Ctrl bieg góra/dół");
+        GUI.Label(new Rect(20, 195, 600, 25),
+            "R (przytrzymaj) odpal/zgaś, W gaz, S hamulec, Spacja ręczny, Shift/Ctrl bieg");
     }
 }

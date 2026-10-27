@@ -270,6 +270,53 @@ WheelCollider:
   m_LayerOverridePriority: 0
   m_Enabled: 1
   m_ProvidesContacts: 0
+--- !u!1 &2444817212157002613
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8903357023524455923}
+  - component: {fileID: 2108409033771236141}
+  m_Layer: 0
+  m_Name: RadiatorSlot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8903357023524455923
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2444817212157002613}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.1, z: 1.75}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7439724132479101271}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2108409033771236141
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2444817212157002613}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PartSlot
+  acceptedType: 4
+  snapDistance: 1
+  wheelCollider: {fileID: 0}
 --- !u!1 &2781331308798466016
 GameObject:
   m_ObjectHideFlags: 0
@@ -870,6 +917,7 @@ Transform:
   - {fileID: 8939319866947661235}
   - {fileID: 7104420273521390974}
   - {fileID: 6383995327466190655}
+  - {fileID: 8903357023524455923}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &1571022573881026514
@@ -1042,6 +1090,7 @@ MonoBehaviour:
   - {fileID: 3511568253390680303}
   - {fileID: 7448004381586445188}
   - {fileID: 824523296796736847}
+  - {fileID: 2108409033771236141}
   startingParts:
   - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
   - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
@@ -1050,6 +1099,7 @@ MonoBehaviour:
   - {fileID: 8125677192079327439, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
   - {fileID: 3627210161992335648, guid: 4cdc4ab981328334ebfc380dfc281061, type: 3}
   - {fileID: 2551698781311800440, guid: f82a4968c67981040a82130d7d3e4592, type: 3}
+  - {fileID: 4642633203993722059, guid: f4840192fc756f842bec12350f00514d, type: 3}
 --- !u!1 &8856999510651766619
 GameObject:
   m_ObjectHideFlags: 0

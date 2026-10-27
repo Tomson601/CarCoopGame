@@ -5,7 +5,8 @@ public enum PartType
     Wheel,
     Engine,
     Gearbox,
-    FuelTank
+    FuelTank,
+    Radiator
 }
 
 [RequireComponent(typeof(Pickupable))]
