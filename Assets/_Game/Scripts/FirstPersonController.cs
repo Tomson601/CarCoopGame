@@ -1,8 +1,9 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Unity.Netcode;
 
 [RequireComponent(typeof(CharacterController))]
-public class FirstPersonController : MonoBehaviour
+public class FirstPersonController : NetworkBehaviour
 {
     [Header("Ruch")]
     public float walkSpeed = 4f;
@@ -14,20 +15,44 @@ public class FirstPersonController : MonoBehaviour
     public Transform cameraTransform;
     public float mouseSensitivity = 0.1f;
     public float maxLookAngle = 85f;
+
     [HideInInspector] public bool canMove = true;
+
     private CharacterController controller;
     private float verticalVelocity;
     private float cameraPitch;
 
-    void Start()
+    public override void OnNetworkSpawn()
     {
         controller = GetComponent<CharacterController>();
+
+        if (!IsOwner)
+        {
+            // Cudza postać: wyłączamy jej kamerę, dźwięk i interakcje
+            cameraTransform.GetComponent<Camera>().enabled = false;
+            cameraTransform.GetComponent<AudioListener>().enabled = false;
+            GetComponent<PlayerInteractor>().enabled = false;
+            GetComponent<VehicleInteractor>().enabled = false;
+            return;
+        }
+
+        // Nasza postać: wyłącz kamerę z menu
+        GameObject lobbyCam = GameObject.Find("LobbyCamera");
+        if (lobbyCam != null) lobbyCam.SetActive(false);
+
+        // Losowy punkt startu, żeby gracze nie pojawili się w sobie
+        controller.enabled = false;
+        transform.position = new Vector3(Random.Range(-3f, 3f), 1f, Random.Range(-3f, 3f));
+        controller.enabled = true;
+
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
 
     void Update()
     {
+        if (!IsOwner) return;
+
         HandleLook();
         if (canMove) HandleMovement();
     }
@@ -36,10 +61,8 @@ public class FirstPersonController : MonoBehaviour
     {
         Vector2 mouseDelta = Mouse.current.delta.ReadValue() * mouseSensitivity;
 
-        // Obrót całego gracza w poziomie
         transform.Rotate(Vector3.up * mouseDelta.x);
 
-        // Obrót samej kamery w pionie, z ograniczeniem
         cameraPitch -= mouseDelta.y;
         cameraPitch = Mathf.Clamp(cameraPitch, -maxLookAngle, maxLookAngle);
         cameraTransform.localRotation = Quaternion.Euler(cameraPitch, 0f, 0f);
@@ -49,7 +72,6 @@ public class FirstPersonController : MonoBehaviour
     {
         Keyboard kb = Keyboard.current;
 
-        // Kierunek z WASD
         Vector2 input = Vector2.zero;
         if (kb.wKey.isPressed) input.y += 1;
         if (kb.sKey.isPressed) input.y -= 1;
@@ -60,10 +82,9 @@ public class FirstPersonController : MonoBehaviour
         float speed = kb.leftShiftKey.isPressed ? sprintSpeed : walkSpeed;
         Vector3 move = (transform.right * input.x + transform.forward * input.y) * speed;
 
-        // Grawitacja i skok
         if (controller.isGrounded)
         {
-            if (verticalVelocity < 0) verticalVelocity = -2f; // dociska do ziemi
+            if (verticalVelocity < 0) verticalVelocity = -2f;
             if (kb.spaceKey.wasPressedThisFrame)
                 verticalVelocity = Mathf.Sqrt(jumpHeight * -2f * gravity);
         }
@@ -72,7 +93,6 @@ public class FirstPersonController : MonoBehaviour
 
         controller.Move(move * Time.deltaTime);
 
-        // Escape odblokowuje kursor
         if (kb.escapeKey.wasPressedThisFrame)
         {
             Cursor.lockState = CursorLockMode.None;

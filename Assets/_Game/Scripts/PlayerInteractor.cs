@@ -13,6 +13,7 @@ public class PlayerInteractor : MonoBehaviour
     public float throwForce = 10f;
 
     private Pickupable held;
+    private NetworkPickup heldNet; // null = przedmiot tylko lokalny (np. koło)
     private Collider playerCollider;
 
     void Start()
@@ -41,42 +42,73 @@ public class PlayerInteractor : MonoBehaviour
     {
         if (held == null) return;
 
-        // Przyciąganie przedmiotu do punktu przed kamerą
+        if (heldNet != null)
+        {
+            // Host odmówił, bo ktoś inny był szybszy
+            if (heldNet.IsHeldByOther) { CancelHold(); return; }
+
+            // Czekamy, aż host odda nam własność
+            if (!heldNet.IsOwner) return;
+        }
+
         Vector3 toTarget = holdPoint.position - held.rb.position;
         held.rb.linearVelocity = toTarget * followStrength;
-
-        // Wygaszanie obrotu, żeby się nie kręcił
         held.rb.angularVelocity = Vector3.Lerp(held.rb.angularVelocity, Vector3.zero, 0.3f);
 
-        // Jeśli przedmiot gdzieś utknął daleko, puść go
         if (toTarget.magnitude > reachDistance * 1.5f) Drop();
     }
 
     void TryPickup()
     {
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
-        if (Physics.Raycast(ray, out RaycastHit hit, reachDistance))
-        {
-            Pickupable p = hit.collider.GetComponentInParent<Pickupable>();
-            if (p != null)
-            {
-                // Jeśli to zamontowane koło, najpierw je odkręć
-                WheelPart wheel = p.GetComponent<WheelPart>();
-                if (wheel != null && wheel.currentSlot != null)
-                    wheel.currentSlot.Detach();
+        if (!Physics.Raycast(ray, out RaycastHit hit, reachDistance)) return;
 
-                held = p;
-                held.rb.useGravity = false;
-                SetIgnorePlayer(true);
-            }
-        }
+        Pickupable p = hit.collider.GetComponentInParent<Pickupable>();
+        if (p == null) return;
+
+        NetworkPickup np = p.GetComponent<NetworkPickup>();
+        if (np != null && np.holderId.Value != NetworkPickup.NoHolder) return; // ktoś trzyma
+
+        WheelPart wheel = p.GetComponent<WheelPart>();
+        if (wheel != null && wheel.currentSlot != null)
+            wheel.currentSlot.Detach();
+
+        held = p;
+        heldNet = np;
+        if (np != null) np.RequestPickupServerRpc();
+
+        held.rb.useGravity = false;
+        SetIgnorePlayer(true);
     }
+
+    void Drop()
+    {
+        if (heldNet != null) heldNet.ReleaseServerRpc();
+        CancelHold();
+    }
+
+    void CancelHold()
+    {
+        held.rb.useGravity = true;
+        SetIgnorePlayer(false);
+        held = null;
+        heldNet = null;
+    }
+
+    void Throw()
+    {
+        bool canThrow = heldNet == null || heldNet.IsOwner;
+        Pickupable p = held;
+        Drop();
+        if (canThrow)
+            p.rb.AddForce(cameraTransform.forward * throwForce, ForceMode.VelocityChange);
+    }
+
     bool TryMount()
     {
         WheelPart wheel = held.GetComponent<WheelPart>();
         if (wheel == null) return false;
 
-        // Szukamy najbliższego pustego slotu w zasięgu
         WheelSlot best = null;
         float bestDist = float.MaxValue;
         foreach (WheelSlot slot in FindObjectsByType<WheelSlot>(FindObjectsSortMode.None))
@@ -97,23 +129,8 @@ public class PlayerInteractor : MonoBehaviour
         return true;
     }
 
-    void Drop()
-    {
-        held.rb.useGravity = true;
-        SetIgnorePlayer(false);
-        held = null;
-    }
-
-    void Throw()
-    {
-        Pickupable p = held;
-        Drop();
-        p.rb.AddForce(cameraTransform.forward * throwForce, ForceMode.VelocityChange);
-    }
-
     void SetIgnorePlayer(bool ignore)
     {
-        // Żeby nie dało się stanąć na trzymanym przedmiocie i odlecieć
         foreach (Collider c in held.GetComponentsInChildren<Collider>())
             Physics.IgnoreCollision(c, playerCollider, ignore);
     }
