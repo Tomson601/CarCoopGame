@@ -14,7 +14,7 @@ public class FirstPersonController : MonoBehaviour
     public Transform cameraTransform;
     public float mouseSensitivity = 0.1f;
     public float maxLookAngle = 85f;
-
+    [HideInInspector] public bool canMove = true;
     private CharacterController controller;
     private float verticalVelocity;
     private float cameraPitch;
@@ -29,7 +29,7 @@ public class FirstPersonController : MonoBehaviour
     void Update()
     {
         HandleLook();
-        HandleMovement();
+        if (canMove) HandleMovement();
     }
 
     void HandleLook()
