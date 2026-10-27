@@ -28,7 +28,7 @@ public class PlayerInteractor : MonoBehaviour
         if (kb.eKey.wasPressedThisFrame)
         {
             if (held == null) TryPickup();
-            else Drop();
+            else if (!TryMount()) Drop();
         }
 
         if (held != null && mouse.leftButton.wasPressedThisFrame)
@@ -60,11 +60,41 @@ public class PlayerInteractor : MonoBehaviour
             Pickupable p = hit.collider.GetComponentInParent<Pickupable>();
             if (p != null)
             {
+                // Jeśli to zamontowane koło, najpierw je odkręć
+                WheelPart wheel = p.GetComponent<WheelPart>();
+                if (wheel != null && wheel.currentSlot != null)
+                    wheel.currentSlot.Detach();
+
                 held = p;
                 held.rb.useGravity = false;
                 SetIgnorePlayer(true);
             }
         }
+    }
+    bool TryMount()
+    {
+        WheelPart wheel = held.GetComponent<WheelPart>();
+        if (wheel == null) return false;
+
+        // Szukamy najbliższego pustego slotu w zasięgu
+        WheelSlot best = null;
+        float bestDist = float.MaxValue;
+        foreach (WheelSlot slot in FindObjectsByType<WheelSlot>(FindObjectsSortMode.None))
+        {
+            if (!slot.IsEmpty) continue;
+            float d = Vector3.Distance(slot.transform.position, held.transform.position);
+            if (d < slot.snapDistance && d < bestDist)
+            {
+                best = slot;
+                bestDist = d;
+            }
+        }
+
+        if (best == null) return false;
+
+        Drop();
+        best.Mount(wheel);
+        return true;
     }
 
     void Drop()

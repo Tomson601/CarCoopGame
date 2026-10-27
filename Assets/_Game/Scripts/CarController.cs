@@ -79,6 +79,9 @@ public class CarController : MonoBehaviour
 
     void UpdateWheelVisual(WheelCollider col, Transform visual)
     {
+        // Wyłączony collider (brak koła) - slot zostaje tam, gdzie był
+        if (!col.enabled) return;
+
         col.GetWorldPose(out Vector3 pos, out Quaternion rot);
         visual.SetPositionAndRotation(pos, rot);
     }
