@@ -126,8 +126,8 @@ GameObject:
   - component: {fileID: 3057802419233609473}
   - component: {fileID: 2023181738571628921}
   - component: {fileID: 4204300075407405873}
-  - component: {fileID: 2960945247122472209}
   - component: {fileID: 5323002948057349899}
+  - component: {fileID: 780426533564323867}
   m_Layer: 0
   m_Name: Jerrycan
   m_TagString: Untagged
@@ -190,7 +190,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1949382061
+  GlobalObjectIdHash: 666919160
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
@@ -286,27 +286,6 @@ MonoBehaviour:
   UseRigidBodyForMotion: 0
   AutoUpdateKinematicState: 1
   AutoSetKinematicOnDespawn: 1
---- !u!114 &2960945247122472209
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1541864412315216982}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0ad064ca903b28346ac4a2af43db9153, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::Jerrycan
-  ShowTopMostFoldoutHeaderGroup: 1
-  capacity: 20
-  startLiters: 20
-  pourRate: 2
-  liters:
-    UpdateTraits:
-      MinSecondsBetweenUpdates: 0
-      MaxSecondsBetweenUpdates: 0
-    m_InternalValue: 0
 --- !u!114 &5323002948057349899
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -321,3 +300,31 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Pickupable
   displayName: Kanister
   rb: {fileID: 0}
+--- !u!114 &780426533564323867
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1541864412315216982}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c35004ca0b56b14a8e24cf2e2cbf8bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FuelContainer
+  ShowTopMostFoldoutHeaderGroup: 1
+  capacity: 20
+  startContents:
+    petrol: 20
+    diesel: 0
+    oil: 0
+  canPourFrom: 1
+  pourRate: 2
+  contents:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue:
+      petrol: 0
+      diesel: 0
+      oil: 0

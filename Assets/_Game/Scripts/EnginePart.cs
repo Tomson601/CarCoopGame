@@ -1,17 +1,28 @@
 using UnityEngine;
+using Unity.Netcode;
+
+public enum EngineFuelType
+{
+    Petrol,
+    Diesel,
+    TwoStroke
+}
 
 [RequireComponent(typeof(CarPart))]
-public class EnginePart : MonoBehaviour
+public class EnginePart : NetworkBehaviour
 {
     public string engineName = "1.6 R4";
+    public EngineFuelType fuelType = EngineFuelType.Petrol;
 
     [Tooltip("Maksymalny moment obrotowy w Nm")]
     public float maxTorque = 150f;
 
     public float idleRpm = 900f;
     public float maxRpm = 6500f;
+
     [Tooltip("Moment hamowania silnikiem w Nm przy maksymalnych obrotach, bez gazu")]
     public float engineBraking = 40f;
+
     [Tooltip("Spalanie w litrach na godzinę przy pełnym gazie i maksymalnych obrotach")]
     public float maxFuelConsumption = 20f;
 
@@ -21,8 +32,53 @@ public class EnginePart : MonoBehaviour
         new Keyframe(0.55f, 1f),
         new Keyframe(1f, 0.7f));
 
+    // Stan silnika 0-100%. Zmienia tylko host.
+    public NetworkVariable<float> health = new NetworkVariable<float>(100f);
+
     public float GetTorque(float rpm)
     {
         return maxTorque * torqueCurve.Evaluate(rpm / maxRpm);
+    }
+
+    public void ServerDamage(float amount)
+    {
+        if (amount <= 0f) return;
+        health.Value = Mathf.Max(0f, health.Value - amount);
+    }
+
+    // quality: 1 = idealne paliwo, poniżej 0.2 silnik nie pracuje
+    // damagePerSecond: ile % stanu silnika ubywa na sekundę (przy pełnych obrotach)
+    public void EvaluateFuel(FuelMix mix, out float quality, out float damagePerSecond)
+    {
+        float petrol = mix.PetrolShare;
+        float diesel = mix.DieselShare;
+        float oil = mix.OilShare;
+
+        quality = 1f;
+        damagePerSecond = 0f;
+
+        switch (fuelType)
+        {
+            case EngineFuelType.Petrol:
+                quality = 1f - diesel * 3.3f - oil * 2f;
+                damagePerSecond = diesel * 0.5f + oil * 0.2f;
+                break;
+
+            case EngineFuelType.Diesel:
+                quality = 1f - petrol * 2.5f - oil * 1f;
+                damagePerSecond = petrol * 2f; // benzyna niszczy pompę wtryskową
+                break;
+
+            case EngineFuelType.TwoStroke:
+                quality = 1f - diesel * 3.3f;
+                if (oil < 0.01f)
+                    damagePerSecond = (0.01f - oil) * 300f; // za mało oleju: zatarcie
+                else if (oil > 0.05f)
+                    quality -= (oil - 0.05f) * 8f;          // za dużo oleju: dymi i traci moc
+                damagePerSecond += diesel * 0.5f;
+                break;
+        }
+
+        quality = Mathf.Clamp01(quality);
     }
 }

@@ -145,38 +145,44 @@ public class PlayerInteractor : MonoBehaviour
     {
         if (held == null || heldNet == null || !heldNet.IsOwner) return;
 
-        Jerrycan can = held.GetComponent<Jerrycan>();
-        if (can == null) return;
+        FuelContainer source = held.GetComponent<FuelContainer>();
+        if (source == null || !source.canPourFrom) return;
 
-        if (!Mouse.current.rightButton.isPressed)
+        bool pour = Mouse.current.rightButton.isPressed;
+        bool dump = Keyboard.current.gKey.isPressed;
+
+        if (!pour && !dump)
         {
             pourTimer = 0f;
             return;
         }
 
-        FuelTankPart tank = FindNearestTank(held.transform.position);
-        if (tank == null) return;
+        FuelContainer target = pour ? FindPourTarget(source) : null;
+        if (pour && target == null) return;
 
-        // Wysyłaj co ćwierć sekundy, a nie co klatkę
         pourTimer += Time.deltaTime;
         if (pourTimer >= 0.25f)
         {
-            can.PourIntoServerRpc(tank.NetworkObject, can.pourRate * pourTimer);
+            float amount = source.pourRate * pourTimer;
+            if (pour) source.PourIntoServerRpc(target.NetworkObject, amount);
+            else source.DumpServerRpc(amount);
             pourTimer = 0f;
         }
     }
 
-    FuelTankPart FindNearestTank(Vector3 position)
+    FuelContainer FindPourTarget(FuelContainer source)
     {
-        FuelTankPart best = null;
+        FuelContainer best = null;
         float bestDist = pourDistance;
 
-        foreach (FuelTankPart tank in FindObjectsByType<FuelTankPart>(FindObjectsSortMode.None))
+        foreach (FuelContainer c in FindObjectsByType<FuelContainer>(FindObjectsSortMode.None))
         {
-            float d = Vector3.Distance(tank.transform.position, position);
+            if (c == source) continue;
+
+            float d = Vector3.Distance(c.transform.position, source.transform.position);
             if (d < bestDist)
             {
-                best = tank;
+                best = c;
                 bestDist = d;
             }
         }
@@ -187,17 +193,22 @@ public class PlayerInteractor : MonoBehaviour
     {
         if (held == null) return;
 
-        Jerrycan can = held.GetComponent<Jerrycan>();
-        if (can == null) return;
+        FuelContainer source = held.GetComponent<FuelContainer>();
+        if (source == null) return;
 
-        float x = Screen.width / 2f - 150f;
+        float x = Screen.width / 2f - 200f;
         float y = Screen.height / 2f + 40f;
 
-        GUI.Label(new Rect(x, y, 300, 25), $"Kanister: {can.liters.Value:0.0} / {can.capacity:0} L");
+        GUI.Label(new Rect(x, y, 500, 25),
+            $"{held.displayName}: {source.Liters:0.00} / {source.capacity:0.#} L  ({source.contents.Value.Describe()})");
 
-        FuelTankPart tank = FindNearestTank(held.transform.position);
-        if (tank != null)
-            GUI.Label(new Rect(x, y + 25, 400, 25),
-                $"Zbiornik: {tank.fuel.Value:0.0} / {tank.capacity:0} L   [PPM - wlej]");
+        if (!source.canPourFrom) return;
+
+        FuelContainer target = FindPourTarget(source);
+        if (target != null)
+            GUI.Label(new Rect(x, y + 25, 500, 25),
+                $"Cel: {target.Liters:0.0} / {target.capacity:0} L  ({target.contents.Value.Describe()})   [PPM - wlej]");
+
+        GUI.Label(new Rect(x, y + 50, 500, 25), "[G - wylej na ziemię]");
     }
 }

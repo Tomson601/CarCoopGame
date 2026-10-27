@@ -12,8 +12,8 @@ GameObject:
   - component: {fileID: 1724650391989644782}
   - component: {fileID: 3966732027671545233}
   - component: {fileID: 6522759778979725654}
-  - component: {fileID: 8059795772322680426}
   - component: {fileID: 1329313577967392974}
+  - component: {fileID: 8059795772322680426}
   - component: {fileID: 5156969250070750451}
   - component: {fileID: 5457449352686878484}
   - component: {fileID: 3470257055484611949}
@@ -98,6 +98,33 @@ MonoBehaviour:
   slotIndex: -1
   pickupable: {fileID: 0}
   net: {fileID: 0}
+--- !u!114 &1329313577967392974
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8125677192079327439}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
+  GlobalObjectIdHash: 2565041330
+  InScenePlacedSourceGlobalObjectIdHash: 0
+  m_InScenePlacedDisabledByDefault: 0
+  DeferredDespawnTick: 0
+  Ownership: 1
+  AlwaysReplicateAsRoot: 0
+  SynchronizeTransform: 1
+  m_InScenePlaced: 0
+  ActiveSceneSynchronization: 0
+  SceneMigrationSynchronization: 0
+  SpawnWithObservers: 1
+  DontDestroyWithOwner: 1
+  AutoObjectParentSync: 1
+  SyncOwnerTransformWhenParented: 1
+  AllowOwnerToParent: 0
 --- !u!114 &8059795772322680426
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -110,10 +137,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 042f702720d9f12439c66b72e38cb393, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnginePart
+  ShowTopMostFoldoutHeaderGroup: 1
   engineName: 1.6 R4
+  fuelType: 0
   maxTorque: 150
   idleRpm: 900
   maxRpm: 6500
+  engineBraking: 40
+  maxFuelConsumption: 20
   torqueCurve:
     serializedVersion: 2
     m_Curve:
@@ -147,33 +178,11 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
---- !u!114 &1329313577967392974
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8125677192079327439}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2565041330
-  InScenePlacedSourceGlobalObjectIdHash: 0
-  m_InScenePlacedDisabledByDefault: 0
-  DeferredDespawnTick: 0
-  Ownership: 1
-  AlwaysReplicateAsRoot: 0
-  SynchronizeTransform: 1
-  m_InScenePlaced: 0
-  ActiveSceneSynchronization: 0
-  SceneMigrationSynchronization: 0
-  SpawnWithObservers: 1
-  DontDestroyWithOwner: 1
-  AutoObjectParentSync: 1
-  SyncOwnerTransformWhenParented: 1
-  AllowOwnerToParent: 0
+  health:
+    UpdateTraits:
+      MinSecondsBetweenUpdates: 0
+      MaxSecondsBetweenUpdates: 0
+    m_InternalValue: 100
 --- !u!114 &5156969250070750451
 MonoBehaviour:
   m_ObjectHideFlags: 0
