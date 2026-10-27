@@ -11,10 +11,12 @@ public class PlayerInteractor : MonoBehaviour
     public float reachDistance = 3f;
     public float followStrength = 15f;
     public float throwForce = 10f;
+    public float pourDistance = 1.5f;
 
     private Pickupable held;
     private NetworkPickup heldNet; // null = przedmiot tylko lokalny (np. koło)
     private Collider playerCollider;
+    private float pourTimer;
 
     void Start()
     {
@@ -36,6 +38,7 @@ public class PlayerInteractor : MonoBehaviour
         {
             Throw();
         }
+        HandlePouring();
     }
 
     void FixedUpdate()
@@ -137,5 +140,64 @@ public class PlayerInteractor : MonoBehaviour
     {
         foreach (Collider c in held.GetComponentsInChildren<Collider>())
             Physics.IgnoreCollision(c, playerCollider, ignore);
+    }
+    void HandlePouring()
+    {
+        if (held == null || heldNet == null || !heldNet.IsOwner) return;
+
+        Jerrycan can = held.GetComponent<Jerrycan>();
+        if (can == null) return;
+
+        if (!Mouse.current.rightButton.isPressed)
+        {
+            pourTimer = 0f;
+            return;
+        }
+
+        FuelTankPart tank = FindNearestTank(held.transform.position);
+        if (tank == null) return;
+
+        // Wysyłaj co ćwierć sekundy, a nie co klatkę
+        pourTimer += Time.deltaTime;
+        if (pourTimer >= 0.25f)
+        {
+            can.PourIntoServerRpc(tank.NetworkObject, can.pourRate * pourTimer);
+            pourTimer = 0f;
+        }
+    }
+
+    FuelTankPart FindNearestTank(Vector3 position)
+    {
+        FuelTankPart best = null;
+        float bestDist = pourDistance;
+
+        foreach (FuelTankPart tank in FindObjectsByType<FuelTankPart>(FindObjectsSortMode.None))
+        {
+            float d = Vector3.Distance(tank.transform.position, position);
+            if (d < bestDist)
+            {
+                best = tank;
+                bestDist = d;
+            }
+        }
+        return best;
+    }
+
+    void OnGUI()
+    {
+        if (held == null) return;
+
+        Jerrycan can = held.GetComponent<Jerrycan>();
+        if (can == null) return;
+
+        float x = Screen.width / 2f - 150f;
+        float y = Screen.height / 2f + 40f;
+
+        GUI.Label(new Rect(x, y, 300, 25), $"Kanister: {can.liters.Value:0.0} / {can.capacity:0} L");
+
+        FuelTankPart tank = FindNearestTank(held.transform.position);
+        if (tank != null)
+            GUI.Label(new Rect(x, y + 25, 400, 25),
+                $"Zbiornik: {tank.fuel.Value:0.0} / {tank.capacity:0} L   [PPM - wlej]");
     }
 }

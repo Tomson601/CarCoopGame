@@ -36,6 +36,9 @@ public class CarController : NetworkBehaviour
     [Header("Opory")]
     [Tooltip("Opór powietrza. Większy = niższa prędkość maksymalna.")]
     public float airDrag = 0.4f;
+    [Header("Paliwo")]
+    [Tooltip("1 = realistyczne spalanie (bardzo wolno), 10 = szybciej, wygodne do testów")]
+    public float fuelGameplayMultiplier = 10f;
 
     [Header("Fotele (0 = kierowca)")]
     public Seat[] seats;
@@ -56,6 +59,8 @@ public class CarController : NetworkBehaviour
         0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private float engineRpm = 0f;
     private float lastShiftTime;
+    private float pendingFuel;
+    private float fuelFlushTimer;
 
     public ulong DriverId => GetOccupant(0);
     public bool HasDriver => DriverId != NoOne;
@@ -212,6 +217,7 @@ public class CarController : NetworkBehaviour
 
         // Napęd na tylne koła
         float driveTorque = CalculateDriveTorque(throttle);
+        UpdateFuel(throttle);
         rearLeft.motorTorque = driveTorque * 0.5f;
         rearRight.motorTorque = driveTorque * 0.5f;
 
@@ -239,7 +245,13 @@ public class CarController : NetworkBehaviour
             engineRpm = 0f;
             return 0f;
         }
-
+        // Brak zbiornika albo pusty zbiornik: silnik gaśnie
+        FuelTankPart tank = parts.GetMounted<FuelTankPart>();
+        if (tank == null || !tank.HasFuel)
+        {
+            engineRpm = Mathf.Lerp(engineRpm, 0f, Time.fixedDeltaTime * 2f);
+            return 0f;
+        }
         // Bez skrzyni zawsze luz. Przy skrzyni z mniejszą liczbą biegów - przytnij bieg.
         int g = box == null ? 0 : Mathf.Clamp(gear.Value, -1, box.gearRatios.Length);
         if (g != gear.Value) gear.Value = g;
@@ -290,7 +302,37 @@ public class CarController : NetworkBehaviour
 
         return driveAtWheels - brakeAtWheels;
     }
+    void UpdateFuel(float throttle)
+    {
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        FuelTankPart tank = parts.GetMounted<FuelTankPart>();
 
+        if (engine != null && tank != null && tank.HasFuel)
+        {
+            // Im wyższe obroty i więcej gazu, tym większe spalanie. Na jałowym trochę zawsze pali.
+            float load = 0.15f + 0.85f * throttle;
+            float rpmFactor = engineRpm / engine.maxRpm;
+            float litersPerHour = engine.maxFuelConsumption * load * rpmFactor;
+
+            pendingFuel += litersPerHour / 3600f * fuelGameplayMultiplier * Time.fixedDeltaTime;
+        }
+
+        // Raz na sekundę zgłoś hostowi spalone paliwo
+        fuelFlushTimer += Time.fixedDeltaTime;
+        if (fuelFlushTimer >= 1f)
+        {
+            if (pendingFuel > 0f) ConsumeFuelServerRpc(pendingFuel);
+            pendingFuel = 0f;
+            fuelFlushTimer = 0f;
+        }
+    }
+
+    [ServerRpc]
+    void ConsumeFuelServerRpc(float liters)
+    {
+        FuelTankPart tank = parts.GetMounted<FuelTankPart>();
+        if (tank != null) tank.ServerConsume(liters);
+    }
     void HandleShiftInput()
     {
         GearboxPart box = parts.GetMounted<GearboxPart>();
@@ -374,7 +416,13 @@ public class CarController : NetworkBehaviour
 
         GUI.Label(new Rect(20, 70, 400, 25),
             box != null ? $"{box.gearboxName}  |  Bieg: {gearText}" : "BRAK SKRZYNI");
-        GUI.Label(new Rect(20, 95, 500, 25),
+        FuelTankPart tank = parts.GetMounted<FuelTankPart>();
+        if (tank != null && tank.fuel.Value < tank.capacity * 0.15f) GUI.color = Color.yellow; // rezerwa
+        GUI.Label(new Rect(20, 95, 400, 25),
+            tank != null ? $"Paliwo: {tank.fuel.Value:0.0} / {tank.capacity:0} L" : "BRAK ZBIORNIKA");
+        GUI.color = Color.white;
+
+        GUI.Label(new Rect(20, 120, 500, 25),
             "W gaz, S hamulec, Spacja ręczny, Shift/Ctrl bieg góra/dół");
     }
 }

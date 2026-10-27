@@ -76,6 +76,10 @@ PrefabInstance:
       propertyPath: engineName
       value: V8
       objectReference: {fileID: 0}
+    - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+      propertyPath: maxFuelConsumption
+      value: 45
+      objectReference: {fileID: 0}
     - target: {fileID: 8125677192079327439, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
       propertyPath: m_Name
       value: Engine_V8
