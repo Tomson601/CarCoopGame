@@ -582,6 +582,53 @@ MonoBehaviour:
   acceptedType: 0
   snapDistance: 1
   wheelCollider: {fileID: 2554097824661059408}
+--- !u!1 &5244000574021388458
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7104420273521390974}
+  - component: {fileID: 7448004381586445188}
+  m_Layer: 0
+  m_Name: GearboxSlot
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7104420273521390974
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5244000574021388458}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 1.03, z: 0.7}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 7439724132479101271}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &7448004381586445188
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5244000574021388458}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cb2299ee368209646ae28267935610f0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PartSlot
+  acceptedType: 2
+  snapDistance: 1
+  wheelCollider: {fileID: 0}
 --- !u!1 &5954712460884326072
 GameObject:
   m_ObjectHideFlags: 0
@@ -774,6 +821,7 @@ Transform:
   - {fileID: 8586431834520273447}
   - {fileID: 4232920019496249499}
   - {fileID: 8939319866947661235}
+  - {fileID: 7104420273521390974}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &1571022573881026514
@@ -852,7 +900,9 @@ MonoBehaviour:
   rearLeftVisual: {fileID: 5520262393338615877}
   rearRightVisual: {fileID: 6655640699200365992}
   brakeTorque: 3000
+  handbrakeTorque: 5000
   maxSteerAngle: 30
+  drivetrainEfficiency: 0.85
   seats:
   - point: {fileID: 1838521944585046551}
     exitPoint: {fileID: 9129993738764610845}
@@ -940,12 +990,14 @@ MonoBehaviour:
   - {fileID: 3275409032072641612}
   - {fileID: 7754805910124028695}
   - {fileID: 3511568253390680303}
+  - {fileID: 7448004381586445188}
   startingParts:
   - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
   - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
   - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
   - {fileID: 5926007982110836099, guid: d98fcd5f9fbd09243b2ea26834adb688, type: 3}
   - {fileID: 8125677192079327439, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+  - {fileID: 3627210161992335648, guid: 4cdc4ab981328334ebfc380dfc281061, type: 3}
 --- !u!1 &8856999510651766619
 GameObject:
   m_ObjectHideFlags: 0

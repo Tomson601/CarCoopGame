@@ -3,7 +3,8 @@ using UnityEngine;
 public enum PartType
 {
     Wheel,
-    Engine
+    Engine,
+    Gearbox
 }
 
 [RequireComponent(typeof(Pickupable))]

@@ -10,8 +10,8 @@ public class CarController : NetworkBehaviour
     [System.Serializable]
     public class Seat
     {
-        public Transform point;      // gdzie siedzi postać
-        public Transform exitPoint;  // gdzie się pojawia po wyjściu
+        public Transform point;
+        public Transform exitPoint;
     }
 
     [Header("Koła - fizyka")]
@@ -26,25 +26,31 @@ public class CarController : NetworkBehaviour
     public Transform rearLeftVisual;
     public Transform rearRightVisual;
 
-    [Header("Silnik i hamulce")]
+    [Header("Hamulce i skręt")]
     public float brakeTorque = 3000f;
+    public float handbrakeTorque = 5000f;
     public float maxSteerAngle = 30f;
+
+    [Header("Napęd")]
+    [Range(0.5f, 1f)] public float drivetrainEfficiency = 0.85f;
 
     [Header("Fotele (0 = kierowca)")]
     public Seat[] seats;
 
-    // Kto siedzi w którym fotelu. Widzą wszyscy, zmienia tylko host.
     private NetworkList<ulong> occupants;
-    // Kąt skrętu przesyłany od kierowcy do pozostałych (tylko do wyglądu kół)
     private NetworkVariable<float> syncedSteer = new NetworkVariable<float>(
         0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-
-    private float[] wheelSpin = new float[4];
-    private Vector3 lastPosition;
 
     private FirstPersonController[] seatedPlayers;
     private Rigidbody rb;
     private CarParts parts;
+    private float[] wheelSpin = new float[4];
+    private Vector3 lastPosition;
+
+    // Stan napędu, liczony u właściciela auta
+    private int gear = 0;          // -1 = R, 0 = N, 1..n = biegi
+    private float engineRpm = 0f;
+    private float lastShiftTime;
 
     public ulong DriverId => GetOccupant(0);
     public bool HasDriver => DriverId != NoOne;
@@ -57,7 +63,7 @@ public class CarController : NetworkBehaviour
         rb.centerOfMass = new Vector3(0, -0.3f, 0);
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        occupants = new NetworkList<ulong>(); // NetworkList musi powstać w Awake
+        occupants = new NetworkList<ulong>();
         seatedPlayers = new FirstPersonController[seats.Length];
     }
 
@@ -80,7 +86,6 @@ public class CarController : NetworkBehaviour
 
     ulong GetOccupant(int index)
     {
-        // Lista może być jeszcze pusta, zanim dotrze od hosta
         return (occupants != null && index < occupants.Count) ? occupants[index] : NoOne;
     }
 
@@ -109,20 +114,18 @@ public class CarController : NetworkBehaviour
     public void RequestSeatServerRpc(int preferredSeat, ServerRpcParams rpcParams = default)
     {
         ulong sender = rpcParams.Receive.SenderClientId;
-        if (FindSeatOf(sender) != -1) return; // już siedzi
+        if (FindSeatOf(sender) != -1) return;
 
-        // Najpierw fotel, na który patrzył, potem pierwszy wolny
         int seat = -1;
         if (preferredSeat >= 0 && preferredSeat < occupants.Count && occupants[preferredSeat] == NoOne)
             seat = preferredSeat;
         else
             seat = FindSeatOf(NoOne);
 
-        if (seat == -1) return; // wszystkie zajęte
+        if (seat == -1) return;
 
         occupants[seat] = sender;
 
-        // Kierowca przejmuje auto
         if (seat == 0 && OwnerClientId != sender)
             NetworkObject.ChangeOwnership(sender);
     }
@@ -142,13 +145,11 @@ public class CarController : NetworkBehaviour
 
     void LateUpdate()
     {
-        // U wszystkich graczy: posadź i wypuść postacie zgodnie z listą
         for (int i = 0; i < seats.Length; i++)
         {
             ulong occupant = GetOccupant(i);
             FirstPersonController player = seatedPlayers[i];
 
-            // Ktoś wstał z fotela
             if (player != null && player.OwnerClientId != occupant)
             {
                 player.SetSeat(null, seats[i].exitPoint);
@@ -156,7 +157,6 @@ public class CarController : NetworkBehaviour
                 player = null;
             }
 
-            // Ktoś usiadł
             if (occupant != NoOne && player == null)
             {
                 player = FindPlayer(occupant);
@@ -183,43 +183,121 @@ public class CarController : NetworkBehaviour
         if (!IsSpawned || !IsOwner) return;
 
         float throttle = 0f;
+        float footBrake = 0f;
         float steer = 0f;
         bool handbrake = false;
 
         if (IsDrivenByMe)
         {
             Keyboard kb = Keyboard.current;
-            if (kb.wKey.isPressed) throttle += 1f;
-            if (kb.sKey.isPressed) throttle -= 1f;
+            if (kb.wKey.isPressed) throttle = 1f;
+            if (kb.sKey.isPressed) footBrake = 1f;
             if (kb.dKey.isPressed) steer += 1f;
             if (kb.aKey.isPressed) steer -= 1f;
             handbrake = kb.spaceKey.isPressed;
         }
 
+        // Skręt
         float steerAngle = steer * maxSteerAngle;
         frontLeft.steerAngle = steerAngle;
         frontRight.steerAngle = steerAngle;
-        // Wysyłaj tylko przy wyraźnej zmianie, żeby nie zaśmiecać sieci
+
         if (Mathf.Abs(syncedSteer.Value - steerAngle) > 0.5f)
             syncedSteer.Value = steerAngle;
 
-        // Moc z zamontowanego silnika. Bez silnika auto nie jedzie.
-        EnginePart engine = parts.GetMounted<EnginePart>();
-        float torque = engine != null ? engine.maxTorque : 0f;
+        // Napęd na tylne koła
+        float driveTorque = CalculateDriveTorque(throttle);
+        rearLeft.motorTorque = driveTorque * 0.5f;
+        rearRight.motorTorque = driveTorque * 0.5f;
 
-        rearLeft.motorTorque = throttle * torque;
-        rearRight.motorTorque = throttle * torque;
-
-        float brake = (handbrake || !HasDriver) ? brakeTorque : 0f;
+        // Hamulce: zwykły na wszystkie koła, ręczny na tył
+        float brake = HasDriver ? footBrake * brakeTorque : brakeTorque;
         frontLeft.brakeTorque = brake;
         frontRight.brakeTorque = brake;
-        rearLeft.brakeTorque = brake;
-        rearRight.brakeTorque = brake;
+
+        float rearBrake = handbrake ? handbrakeTorque : brake;
+        rearLeft.brakeTorque = rearBrake;
+        rearRight.brakeTorque = rearBrake;
     }
+
+    float CalculateDriveTorque(float throttle)
+    {
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        GearboxPart box = parts.GetMounted<GearboxPart>();
+
+        if (engine == null)
+        {
+            engineRpm = 0f;
+            return 0f;
+        }
+
+        // Bez skrzyni zawsze luz. Po zmianie skrzyni na taką z mniejszą liczbą biegów - przytnij bieg.
+        if (box == null) gear = 0;
+        else gear = Mathf.Clamp(gear, -1, box.gearRatios.Length);
+
+        // Luz: silnik kręci się swobodnie od gazu, koła nie dostają napędu
+        if (gear == 0)
+        {
+            float target = engine.idleRpm + throttle * (engine.maxRpm - engine.idleRpm);
+            engineRpm = Mathf.Lerp(engineRpm, target, Time.fixedDeltaTime * 3f);
+            return 0f;
+        }
+
+        float ratio = gear > 0 ? box.gearRatios[gear - 1] : -box.reverseRatio;
+        float totalRatio = ratio * box.finalDrive;
+
+        // Obroty silnika z obrotów kół, nie niżej niż jałowe (uproszczone sprzęgło)
+        float wheelRpm = (rearLeft.rpm + rearRight.rpm) * 0.5f;
+        engineRpm = Mathf.Max(Mathf.Abs(wheelRpm * totalRatio), engine.idleRpm);
+
+        // Automat sam zmienia biegi do przodu
+        if (box.automatic && gear >= 1 && Time.time - lastShiftTime > 0.8f)
+        {
+            if (engineRpm > box.shiftUpRpm && gear < box.gearRatios.Length)
+            {
+                gear++;
+                lastShiftTime = Time.time;
+            }
+            else if (engineRpm < box.shiftDownRpm && gear > 1)
+            {
+                gear--;
+                lastShiftTime = Time.time;
+            }
+        }
+
+        // Ogranicznik obrotów
+        if (engineRpm >= engine.maxRpm) return 0f;
+
+        return engine.GetTorque(engineRpm) * throttle * totalRatio * drivetrainEfficiency;
+    }
+
+    void HandleShiftInput()
+    {
+        GearboxPart box = parts.GetMounted<GearboxPart>();
+        if (box == null) return;
+
+        Keyboard kb = Keyboard.current;
+        int maxGear = box.gearRatios.Length;
+
+        if (kb.leftShiftKey.wasPressedThisFrame)
+        {
+            if (box.automatic) { if (gear <= 0) gear++; }   // R -> N -> D
+            else gear = Mathf.Min(gear + 1, maxGear);
+        }
+
+        if (kb.leftCtrlKey.wasPressedThisFrame)
+        {
+            if (box.automatic) gear = gear >= 1 ? 0 : -1;    // D -> N -> R
+            else gear = Mathf.Max(gear - 1, -1);
+        }
+    }
+
+    // ---------- Wygląd kół ----------
 
     void Update()
     {
-        // U obserwatora prędkość liczymy z przesunięcia auta między klatkami
+        if (IsSpawned && IsDrivenByMe) HandleShiftInput();
+
         Vector3 velocity = (transform.position - lastPosition) / Mathf.Max(Time.deltaTime, 0.0001f);
         lastPosition = transform.position;
         float forwardSpeed = Vector3.Dot(velocity, transform.forward);
@@ -240,7 +318,6 @@ public class CarController : NetworkBehaviour
 
         if (!simulated)
         {
-            // Obrót koła: prędkość / promień, przeliczone na stopnie
             wheelSpin[index] += forwardSpeed / col.radius * Mathf.Rad2Deg * Time.deltaTime;
             float steer = isFront ? syncedSteer.Value : 0f;
             rot = transform.rotation * Quaternion.Euler(wheelSpin[index], steer, 0f);
@@ -249,13 +326,26 @@ public class CarController : NetworkBehaviour
         visual.SetPositionAndRotation(pos, rot);
     }
 
+    // ---------- HUD ----------
+
     void OnGUI()
     {
         if (!IsDrivenByMe) return;
+
+        EnginePart engine = parts.GetMounted<EnginePart>();
+        GearboxPart box = parts.GetMounted<GearboxPart>();
+
         float kmh = rb.linearVelocity.magnitude * 3.6f;
-        GUI.Label(new Rect(20, 20, 200, 30), $"{kmh:0} km/h");
-        EnginePart engineInfo = parts.GetMounted<EnginePart>();
-        string engineText = engineInfo != null ? engineInfo.engineName : "BRAK SILNIKA";
-        GUI.Label(new Rect(20, 45, 300, 30), engineText);
+        string gearText = gear == -1 ? "R"
+                        : gear == 0 ? "N"
+                        : (box != null && box.automatic ? "D" + gear : gear.ToString());
+
+        GUI.Label(new Rect(20, 20, 400, 25), $"{kmh:0} km/h");
+        GUI.Label(new Rect(20, 45, 400, 25),
+            engine != null ? $"{engine.engineName}  |  {engineRpm:0} RPM" : "BRAK SILNIKA");
+        GUI.Label(new Rect(20, 70, 400, 25),
+            box != null ? $"{box.gearboxName}  |  Bieg: {gearText}" : "BRAK SKRZYNI");
+        GUI.Label(new Rect(20, 95, 500, 25),
+            "W gaz, S hamulec, Spacja ręczny, Shift/Ctrl bieg góra/dół");
     }
 }
