@@ -5,7 +5,14 @@ using Unity.Netcode;
 [RequireComponent(typeof(Rigidbody))]
 public class CarController : NetworkBehaviour
 {
-    public const ulong NoDriver = ulong.MaxValue;
+    public const ulong NoOne = ulong.MaxValue;
+
+    [System.Serializable]
+    public class Seat
+    {
+        public Transform point;      // gdzie siedzi postać
+        public Transform exitPoint;  // gdzie się pojawia po wyjściu
+    }
 
     [Header("Koła - fizyka")]
     public WheelCollider frontLeft;
@@ -24,81 +31,134 @@ public class CarController : NetworkBehaviour
     public float brakeTorque = 3000f;
     public float maxSteerAngle = 30f;
 
-    [Header("Miejsca")]
-    public Transform driverSeat;
-    public Transform exitPoint;
+    [Header("Fotele (0 = kierowca)")]
+    public Seat[] seats;
 
-    // Kto prowadzi. Widzą to wszyscy, zmienia tylko host.
-    public NetworkVariable<ulong> driverId = new NetworkVariable<ulong>(NoDriver);
+    // Kto siedzi w którym fotelu. Widzą wszyscy, zmienia tylko host.
+    private NetworkList<ulong> occupants;
 
-    public bool HasDriver => driverId.Value != NoDriver;
-    public bool IsDrivenByMe => IsOwner && driverId.Value == NetworkManager.LocalClientId;
-
+    private FirstPersonController[] seatedPlayers;
     private Rigidbody rb;
-    private FirstPersonController seatedPlayer;
+
+    public ulong DriverId => GetOccupant(0);
+    public bool HasDriver => DriverId != NoOne;
+    public bool IsDrivenByMe => IsOwner && DriverId == NetworkManager.LocalClientId;
 
     void Awake()
     {
         rb = GetComponent<Rigidbody>();
         rb.centerOfMass = new Vector3(0, -0.3f, 0);
         rb.interpolation = RigidbodyInterpolation.Interpolate;
+
+        occupants = new NetworkList<ulong>(); // NetworkList musi powstać w Awake
+        seatedPlayers = new FirstPersonController[seats.Length];
     }
 
     public override void OnNetworkSpawn()
     {
-        driverId.OnValueChanged += OnDriverChanged;
-        if (IsServer) NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
+        if (IsServer)
+        {
+            if (occupants.Count == 0)
+                for (int i = 0; i < seats.Length; i++) occupants.Add(NoOne);
+
+            NetworkManager.OnClientDisconnectCallback += OnClientDisconnected;
+        }
     }
 
     public override void OnNetworkDespawn()
     {
-        driverId.OnValueChanged -= OnDriverChanged;
         if (IsServer && NetworkManager != null)
             NetworkManager.OnClientDisconnectCallback -= OnClientDisconnected;
     }
 
-    // ---------- Wsiadanie i wysiadanie ----------
+    ulong GetOccupant(int index)
+    {
+        // Lista może być jeszcze pusta, zanim dotrze od hosta
+        return (occupants != null && index < occupants.Count) ? occupants[index] : NoOne;
+    }
+
+    int FindSeatOf(ulong clientId)
+    {
+        for (int i = 0; i < occupants.Count; i++)
+            if (occupants[i] == clientId) return i;
+        return -1;
+    }
+
+    // ---------- Fotele ----------
+
+    public int GetNearestSeatIndex(Vector3 point)
+    {
+        int best = 0;
+        float bestDist = float.MaxValue;
+        for (int i = 0; i < seats.Length; i++)
+        {
+            float d = Vector3.Distance(seats[i].point.position, point);
+            if (d < bestDist) { best = i; bestDist = d; }
+        }
+        return best;
+    }
 
     [ServerRpc(RequireOwnership = false)]
-    public void RequestEnterServerRpc(ServerRpcParams rpcParams = default)
+    public void RequestSeatServerRpc(int preferredSeat, ServerRpcParams rpcParams = default)
     {
         ulong sender = rpcParams.Receive.SenderClientId;
-        if (HasDriver) return; // miejsce zajęte
+        if (FindSeatOf(sender) != -1) return; // już siedzi
 
-        driverId.Value = sender;
-        if (OwnerClientId != sender)
+        // Najpierw fotel, na który patrzył, potem pierwszy wolny
+        int seat = -1;
+        if (preferredSeat >= 0 && preferredSeat < occupants.Count && occupants[preferredSeat] == NoOne)
+            seat = preferredSeat;
+        else
+            seat = FindSeatOf(NoOne);
+
+        if (seat == -1) return; // wszystkie zajęte
+
+        occupants[seat] = sender;
+
+        // Kierowca przejmuje auto
+        if (seat == 0 && OwnerClientId != sender)
             NetworkObject.ChangeOwnership(sender);
     }
 
     [ServerRpc(RequireOwnership = false)]
     public void RequestExitServerRpc(ServerRpcParams rpcParams = default)
     {
-        if (driverId.Value == rpcParams.Receive.SenderClientId)
-            driverId.Value = NoDriver;
+        int seat = FindSeatOf(rpcParams.Receive.SenderClientId);
+        if (seat != -1) occupants[seat] = NoOne;
     }
 
     void OnClientDisconnected(ulong clientId)
     {
-        if (driverId.Value == clientId) driverId.Value = NoDriver;
-    }
-
-    void OnDriverChanged(ulong oldId, ulong newId)
-    {
-        // Kierowca wysiadł: wypuść go z fotela (u wszystkich graczy)
-        if (seatedPlayer != null)
-        {
-            seatedPlayer.SetSeat(null, exitPoint);
-            seatedPlayer = null;
-        }
+        int seat = FindSeatOf(clientId);
+        if (seat != -1) occupants[seat] = NoOne;
     }
 
     void LateUpdate()
     {
-        // Posadź kierowcę w fotelu (u wszystkich, także u tych, którzy dołączyli później)
-        if (HasDriver && seatedPlayer == null)
+        // U wszystkich graczy: posadź i wypuść postacie zgodnie z listą
+        for (int i = 0; i < seats.Length; i++)
         {
-            seatedPlayer = FindPlayer(driverId.Value);
-            if (seatedPlayer != null) seatedPlayer.SetSeat(driverSeat);
+            ulong occupant = GetOccupant(i);
+            FirstPersonController player = seatedPlayers[i];
+
+            // Ktoś wstał z fotela
+            if (player != null && player.OwnerClientId != occupant)
+            {
+                player.SetSeat(null, seats[i].exitPoint);
+                seatedPlayers[i] = null;
+                player = null;
+            }
+
+            // Ktoś usiadł
+            if (occupant != NoOne && player == null)
+            {
+                player = FindPlayer(occupant);
+                if (player != null)
+                {
+                    player.SetSeat(seats[i].point);
+                    seatedPlayers[i] = player;
+                }
+            }
         }
     }
 
@@ -113,7 +173,6 @@ public class CarController : NetworkBehaviour
 
     void FixedUpdate()
     {
-        // Fizykę liczy tylko właściciel auta
         if (!IsSpawned || !IsOwner) return;
 
         float throttle = 0f;

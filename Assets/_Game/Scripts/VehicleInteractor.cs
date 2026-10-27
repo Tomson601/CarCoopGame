@@ -34,10 +34,9 @@ public class VehicleInteractor : MonoBehaviour
         if (!Physics.Raycast(ray, out RaycastHit hit, reachDistance)) return;
 
         CarController car = hit.collider.GetComponentInParent<CarController>();
-        if (car != null && !car.HasDriver)
-        {
-            currentCar = car;
-            car.RequestEnterServerRpc();
-        }
+        if (car == null) return;
+
+        currentCar = car;
+        car.RequestSeatServerRpc(car.GetNearestSeatIndex(hit.point));
     }
 }
