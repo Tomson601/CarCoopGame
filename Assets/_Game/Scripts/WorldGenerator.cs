@@ -42,7 +42,32 @@ public class WorldGenerator : MonoBehaviour
     public Material roadMaterial;
     public Material lineMaterial;
     public Material terrainMaterial;
+    [System.Serializable]
+    public class ScatterItem
+    {
+        public GameObject prefab;
+        [Tooltip("Jak często pojawia się w porównaniu z innymi")]
+        public float weight = 1f;
+        public float minScale = 0.8f;
+        public float maxScale = 1.3f;
+        [Tooltip("Minimalna odległość od osi drogi")]
+        public float minRoadDistance = 8f;
+    }
 
+    [Header("Przyroda")]
+    public ScatterItem[] nature;
+    [Tooltip("Ile obiektów przyrody na jeden kawałek terenu (100 x 100 m)")]
+    public float natureDensity = 25f;
+
+    [Header("Przy drodze")]
+    public GameObject polePrefab;
+    [Tooltip("Co ile próbek drogi stoi słup (próbka = ok. 4 m)")]
+    public int poleEverySamples = 12;
+    [Tooltip("Odległość słupów i znaków od krawędzi drogi")]
+    public float roadsideOffset = 3f;
+    public GameObject kmSignPrefab;
+    [Tooltip("Co ile odcinków drogi stoi znak kilometrowy (odcinek = ok. 100 m)")]
+    public int kmSignEverySegments = 10;
     // Punkty kontrolne drogi. Indeks listy = numer punktu + PointOffset (punkty zaczynają się od -3).
     private const int PointOffset = 3;
     private const int FirstSegment = -2;
@@ -191,8 +216,10 @@ public class WorldGenerator : MonoBehaviour
 
     void DestroyChunk(GameObject go)
     {
+        // Usuwamy tylko siatki wygenerowane przez nas. Siatki z prefabów są wspólne i muszą zostać.
         foreach (MeshFilter mf in go.GetComponentsInChildren<MeshFilter>())
-            Destroy(mf.sharedMesh); // siatki trzeba usuwać ręcznie, inaczej zostają w pamięci
+            if (mf.sharedMesh != null && mf.sharedMesh.name.StartsWith("Gen_"))
+                Destroy(mf.sharedMesh);
         Destroy(go);
     }
 
@@ -228,7 +255,19 @@ public class WorldGenerator : MonoBehaviour
             return (h & 0xFFFFFF) / 16777216f;
         }
     }
-
+    // Jak Hash, ale z trzech liczb (np. współrzędne kawałka i numer obiektu). Wynik 0-1.
+    float Hash3(int a, int b, int c)
+    {
+        unchecked
+        {
+            uint h = (uint)seed * 2654435761u ^ (uint)a * 2246822519u
+                   ^ (uint)b * 3266489917u ^ (uint)c * 668265263u;
+            h = (h ^ (h >> 15)) * 2246822519u;
+            h = (h ^ (h >> 13)) * 3266489917u;
+            h ^= h >> 16;
+            return (h & 0xFFFFFF) / 16777216f;
+        }
+    }
     // ---------- Wysokość terenu ----------
 
     float NaturalHeight(float x, float z)
@@ -409,6 +448,7 @@ public class WorldGenerator : MonoBehaviour
         GameObject go = CreateMeshObject($"Teren {tile.x},{tile.y}", new Vector3(x0, 0f, z0),
                                          verts, uvs, tris, terrainMaterial, true, normals);
         go.AddComponent<Surface>().type = SurfaceType.Grass;
+        ScatterNature(tile, go.transform, road);
         return go;
     }
 
@@ -486,6 +526,7 @@ public class WorldGenerator : MonoBehaviour
         GameObject line = CreateMeshObject("Linia", origin, lineVerts.ToArray(), null,
                                            lineTris.ToArray(), lineMaterial, false, null);
         line.transform.SetParent(go.transform, true);
+        DecorateRoad(seg, go.transform, s, rights);
         return go;
     }
 
@@ -493,7 +534,7 @@ public class WorldGenerator : MonoBehaviour
                                 Material material, bool withCollider, Vector3[] normals)
     {
         Mesh mesh = new Mesh();
-        mesh.name = name;
+        mesh.name = "Gen_" + name; // znacznik: tę siatkę wolno usunąć razem z kawałkiem
         mesh.vertices = verts;
         if (uvs != null) mesh.uv = uvs;
         mesh.triangles = tris;
@@ -508,5 +549,89 @@ public class WorldGenerator : MonoBehaviour
         go.AddComponent<MeshRenderer>().sharedMaterial = material;
         if (withCollider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
         return go;
+    }
+    // ---------- Przyroda i obiekty przy drodze ----------
+
+    void ScatterNature(Vector2Int tile, Transform parent, List<Vector3> road)
+    {
+        if (nature == null || nature.Length == 0) return;
+
+        float totalWeight = 0f;
+        foreach (ScatterItem item in nature)
+            if (item.prefab != null) totalWeight += item.weight;
+        if (totalWeight <= 0f) return;
+
+        float x0 = tile.x * tileSize, z0 = tile.y * tileSize;
+        int count = Mathf.RoundToInt(natureDensity * (tileSize * tileSize) / 10000f);
+
+        for (int i = 0; i < count; i++)
+        {
+            // Pięć "losowych" liczb na obiekt, zawsze takich samych dla tego kawałka
+            float x = x0 + Hash3(tile.x, tile.y, i * 5) * tileSize;
+            float z = z0 + Hash3(tile.x, tile.y, i * 5 + 1) * tileSize;
+            ScatterItem item = PickItem(Hash3(tile.x, tile.y, i * 5 + 2) * totalWeight);
+            if (item == null) continue;
+
+            // Plac startowy zostaje pusty
+            if (Mathf.Sqrt(x * x + z * z) < spawnFlatRadius) continue;
+
+            // Nie na drodze ani tuż przy niej
+            if (road.Count >= 2)
+            {
+                NearestRoad(x, z, road, out float dist, out _);
+                if (dist < item.minRoadDistance) continue;
+            }
+
+            float y = TerrainHeight(x, z, road) - 0.05f; // lekko w ziemi, żeby nie "wisiało"
+            float scale = Mathf.Lerp(item.minScale, item.maxScale, Hash3(tile.x, tile.y, i * 5 + 3));
+            Quaternion rot = Quaternion.Euler(0f, Hash3(tile.x, tile.y, i * 5 + 4) * 360f, 0f);
+
+            GameObject obj = Instantiate(item.prefab, new Vector3(x, y, z), rot, parent);
+            obj.transform.localScale *= scale;
+        }
+    }
+
+    ScatterItem PickItem(float r)
+    {
+        foreach (ScatterItem item in nature)
+        {
+            if (item.prefab == null) continue;
+            if (r < item.weight) return item;
+            r -= item.weight;
+        }
+        return null;
+    }
+
+    void DecorateRoad(int seg, Transform parent, Vector3[] s, Vector3[] rights)
+    {
+        List<Vector3> road = CollectRoadPolyline(s[0].z - 40f, s[s.Length - 1].z + 40f);
+
+        // Słupy po prawej stronie. Ostatnia próbka należy już do następnego odcinka.
+        if (polePrefab != null)
+        {
+            for (int k = 0; k < s.Length - 1; k += poleEverySamples)
+                PlaceBeside(polePrefab, s[k], rights[k], false, parent, road);
+        }
+
+        // Znak kilometrowy po lewej, na początku co któregoś odcinka
+        if (kmSignPrefab != null && seg >= 0 && seg % kmSignEverySegments == 0)
+        {
+            GameObject sign = PlaceBeside(kmSignPrefab, s[0], rights[0], true, parent, road);
+            TMPro.TextMeshPro text = sign.GetComponentInChildren<TMPro.TextMeshPro>();
+            if (text != null) text.text = (seg / kmSignEverySegments).ToString();
+        }
+    }
+
+    GameObject PlaceBeside(GameObject prefab, Vector3 roadPoint, Vector3 right, bool leftSide,
+                           Transform parent, List<Vector3> road)
+    {
+        Vector3 side = leftSide ? -right : right;
+        Vector3 p = roadPoint + side * (roadHalfWidth + roadsideOffset);
+        p.y = TerrainHeight(p.x, p.z, road) - 0.05f;
+
+        // Kierunek jazdy (z wektora "w prawo"). Obiekt patrzy w tę stronę,
+        // więc znak jest czytelny dla nadjeżdżającego kierowcy.
+        Vector3 roadForward = Vector3.Cross(right, Vector3.up);
+        return Instantiate(prefab, p, Quaternion.LookRotation(roadForward), parent);
     }
 }

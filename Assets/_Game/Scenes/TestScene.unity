@@ -2212,6 +2212,33 @@ MonoBehaviour:
   roadMaterial: {fileID: 2100000, guid: 3b3c5a37e1bbf7949877c067b78f0b31, type: 2}
   lineMaterial: {fileID: 2100000, guid: 0ead44bdd5a9c4b4ea285b320ae2c560, type: 2}
   terrainMaterial: {fileID: 2100000, guid: cbbe9454e13e8b54bb472d4c4489f98a, type: 2}
+  nature:
+  - prefab: {fileID: 767744304650249018, guid: a10a034ea671624498a0b95fb1e629f3, type: 3}
+    weight: 3
+    minScale: 0.8
+    maxScale: 1.4
+    minRoadDistance: 9
+  - prefab: {fileID: 5646032832582707194, guid: 90a2e584d1ba4c849a5bb2e327a40f18, type: 3}
+    weight: 2
+    minScale: 0.8
+    maxScale: 1.3
+    minRoadDistance: 10
+  - prefab: {fileID: 2206208924038389242, guid: f32e19c8822a0304a98449c43d9b7ad0, type: 3}
+    weight: 4
+    minScale: 0.6
+    maxScale: 1.4
+    minRoadDistance: 6
+  - prefab: {fileID: 2161877593513402353, guid: de75e4e18a2a49a43bf60f99f6d6a859, type: 3}
+    weight: 1
+    minScale: 0.5
+    maxScale: 1.8
+    minRoadDistance: 7
+  natureDensity: 25
+  polePrefab: {fileID: 0}
+  poleEverySamples: 12
+  roadsideOffset: 3
+  kmSignPrefab: {fileID: 0}
+  kmSignEverySegments: 10
 --- !u!4 &1851283207
 Transform:
   m_ObjectHideFlags: 0
