@@ -7,7 +7,7 @@ public class VehicleInteractor : MonoBehaviour
     public float reachDistance = 3f;
 
     private FirstPersonController fpc;
-    private CarController currentCar;
+    private CarSeats currentCar;
 
     void Start()
     {
@@ -33,7 +33,7 @@ public class VehicleInteractor : MonoBehaviour
         Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
         if (!Physics.Raycast(ray, out RaycastHit hit, reachDistance)) return;
 
-        CarController car = hit.collider.GetComponentInParent<CarController>();
+        CarSeats car = hit.collider.GetComponentInParent<CarSeats>();
         if (car == null) return;
 
         currentCar = car;

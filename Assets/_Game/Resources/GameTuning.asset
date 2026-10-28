@@ -1,0 +1,45 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ebc06d40238cf9843ac152848eccf5c3, type: 3}
+  m_Name: GameTuning
+  m_EditorClassIdentifier: Assembly-CSharp::GameTuning
+  fuelGameplayMultiplier: 10
+  ambientTemperature: 20
+  thermostatTemperature: 88
+  overheatTemperature: 110
+  boilTemperature: 120
+  naturalCooling: 0.004
+  radiatorEfficiency: 0.035
+  fanAirflow: 0.35
+  fullAirflowSpeed: 25
+  overheatDamage: 0.1
+  coolantBoilRate: 0.05
+  oilWarmUpRate: 0.02
+  warmOilTemperature: 70
+  normalWear: 0.02
+  coldWear: 0.3
+  poorLubricationWear: 3
+  noOilWear: 5
+  overrevWear: 20
+  baseCrankTime: 0.6
+  coldCrankTime: 1.4
+  dieselColdFactor: 1.6
+  crankRpm: 250
+  pushStartRpm: 600
+  gearHoldingRpm: 100
+  batteryEmptyLevel: 10
+  batteryFullCrankLevel: 50
+  minSparkCharge: 2
+  tireDistanceWear: 0.001
+  tireSlipWear: 2
+  bareRimGrip: 0.3
+  flatTireGrip: 0.35

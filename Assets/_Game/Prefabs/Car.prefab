@@ -934,6 +934,11 @@ GameObject:
   - component: {fileID: -6036501966092000273}
   - component: {fileID: 3498305914122018431}
   - component: {fileID: 8369815282800589184}
+  - component: {fileID: 7655081444010104234}
+  - component: {fileID: 9168558743687559555}
+  - component: {fileID: 8467217173569785442}
+  - component: {fileID: 57341345086983669}
+  - component: {fileID: 8002889419789439244}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -1007,7 +1012,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2143687297
+  GlobalObjectIdHash: 4258669566
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
@@ -1045,20 +1050,10 @@ MonoBehaviour:
   rearRightVisual: {fileID: 6655640699200365992}
   brakeTorque: 3000
   handbrakeTorque: 5000
-  rollingResistanceTorque: 20
   maxSteerAngle: 30
   drivetrainEfficiency: 0.85
   airDrag: 0.4
-  fuelGameplayMultiplier: 10
-  ambientTemperature: 20
-  thermostatTemperature: 88
-  overheatTemperature: 110
-  boilTemperature: 120
-  seats:
-  - point: {fileID: 1838521944585046551}
-    exitPoint: {fileID: 9129993738764610845}
-  - point: {fileID: 8586431834520273447}
-    exitPoint: {fileID: 4232920019496249499}
+  rollingResistance: 0.015
 --- !u!114 &-6036501966092000273
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1155,6 +1150,75 @@ MonoBehaviour:
   - {fileID: 2551698781311800440, guid: f82a4968c67981040a82130d7d3e4592, type: 3}
   - {fileID: 4642633203993722059, guid: f4840192fc756f842bec12350f00514d, type: 3}
   - {fileID: 9210639032138276391, guid: 6ca22af32bb9156478b6cd6a3c9d5b6a, type: 3}
+--- !u!114 &7655081444010104234
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986166748040159177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd1c9ac488af38e4d9f8ac73f203bf80, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarSeats
+  ShowTopMostFoldoutHeaderGroup: 1
+  seats:
+  - point: {fileID: 1838521944585046551}
+    exitPoint: {fileID: 9129993738764610845}
+  - point: {fileID: 8586431834520273447}
+    exitPoint: {fileID: 4232920019496249499}
+--- !u!114 &9168558743687559555
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986166748040159177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 29eb7d73a841e65459e170bb02f99a08, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarEngine
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &8467217173569785442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986166748040159177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 51423c3cddc16f941a8fed7b1fe3c99b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarElectrics
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &57341345086983669
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986166748040159177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d50d1a08e44b0b49819ba732bb76977, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarTires
+  ShowTopMostFoldoutHeaderGroup: 1
+--- !u!114 &8002889419789439244
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986166748040159177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bb378461b10647649a1e1d5bb898b51f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CarHUD
 --- !u!1 &8856999510651766619
 GameObject:
   m_ObjectHideFlags: 0
