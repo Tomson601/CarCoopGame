@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-// Nieskończony świat: droga i teren generowane w kawałkach wokół graczy, aut i przedmiotów.
-// Wszystko wynika z ziarna (seed), więc każdy gracz generuje u siebie identyczny świat.
+// Nieskończony świat: droga, teren, przyroda i miejsca do odkrycia, generowane w kawałkach
+// wokół graczy, aut i przedmiotów. Wszystko wynika z ziarna (seed),
+// więc każdy gracz generuje u siebie identyczny świat.
 public class WorldGenerator : MonoBehaviour
 {
     [Header("Ziarno świata (takie samo u wszystkich graczy)")]
@@ -42,6 +43,7 @@ public class WorldGenerator : MonoBehaviour
     public Material roadMaterial;
     public Material lineMaterial;
     public Material terrainMaterial;
+
     [System.Serializable]
     public class ScatterItem
     {
@@ -68,6 +70,16 @@ public class WorldGenerator : MonoBehaviour
     public GameObject kmSignPrefab;
     [Tooltip("Co ile odcinków drogi stoi znak kilometrowy (odcinek = ok. 100 m)")]
     public int kmSignEverySegments = 10;
+
+    [Header("Miejsca do odkrycia")]
+    public PointOfInterest[] poiPrefabs;
+    [Tooltip("Szansa na miejsce przy każdym odcinku drogi (0-1)")]
+    [Range(0f, 1f)] public float poiChance = 0.12f;
+    [Tooltip("Pierwszy odcinek, na którym mogą się pojawić (plac startowy zostaje pusty)")]
+    public int firstPoiSegment = 2;
+    [Tooltip("Na jakiej odległości od wyrównanego placu teren wraca do naturalnego")]
+    public float poiBlendDistance = 15f;
+
     // Punkty kontrolne drogi. Indeks listy = numer punktu + PointOffset (punkty zaczynają się od -3).
     private const int PointOffset = 3;
     private const int FirstSegment = -2;
@@ -77,6 +89,10 @@ public class WorldGenerator : MonoBehaviour
     private readonly Dictionary<int, Vector3[]> roadSamples = new Dictionary<int, Vector3[]>();
     private readonly Dictionary<int, GameObject> roadObjects = new Dictionary<int, GameObject>();
     private readonly Dictionary<Vector2Int, GameObject> tileObjects = new Dictionary<Vector2Int, GameObject>();
+
+    // Miejsca, w których host już utworzył łup. Łup się nie odnawia po ponownym zbudowaniu miejsca.
+    private static readonly HashSet<int> lootedPois = new HashSet<int>();
+    public static bool MarkPoiLooted(int id) => lootedPois.Add(id);
 
     private Vector2 noiseOffset;
     private float nextUpdate;
@@ -88,10 +104,20 @@ public class WorldGenerator : MonoBehaviour
         public Focus(Vector3 p, float r) { position = p; radius = r; }
     }
 
+    struct PoiPlacement
+    {
+        public int prefabIndex;
+        public Vector3 position;
+        public Quaternion rotation;
+        public float flatRadius;
+        public bool leftSide;
+    }
+
     // ---------- Start ----------
 
     void Awake()
     {
+        lootedPois.Clear();
         noiseOffset = new Vector2(Hash(0, 100) * 10000f, Hash(0, 101) * 10000f);
         GetControlPoint(straightStartSegments + 2);
 
@@ -120,7 +146,6 @@ public class WorldGenerator : MonoBehaviour
         foreach (Pickupable item in FindObjectsByType<Pickupable>(FindObjectsSortMode.None))
             focus.Add(new Focus(item.transform.position, itemRadius));
 
-        // W menu, zanim ktokolwiek się pojawi: okolica startu
         if (focus.Count == 0) focus.Add(new Focus(Vector3.zero, loadRadius));
         return focus;
     }
@@ -167,8 +192,7 @@ public class WorldGenerator : MonoBehaviour
             foreach (int seg in SegmentsInZRange(f.position.z - f.radius, f.position.z + f.radius))
             {
                 Vector3[] s = GetRoadSamples(seg);
-                Vector3 mid = s[s.Length / 2];
-                if (FlatDistance(mid, f.position) <= f.radius + segmentLength) neededRoads.Add(seg);
+                if (FlatDistance(s[s.Length / 2], f.position) <= f.radius + segmentLength) neededRoads.Add(seg);
             }
         }
 
@@ -195,15 +219,14 @@ public class WorldGenerator : MonoBehaviour
             tileObjects.Remove(tile);
         }
 
-        // Usuwanie dalekich odcinków drogi
+        // Usuwanie dalekich odcinków drogi (razem z ich słupami, znakami i miejscami)
         List<int> roadsToRemove = new List<int>();
         foreach (int seg in roadObjects.Keys)
         {
             Vector3[] s = GetRoadSamples(seg);
-            Vector3 mid = s[s.Length / 2];
             bool keep = false;
             foreach (Focus f in focus)
-                if (FlatDistance(mid, f.position) <= f.radius + segmentLength + margin) { keep = true; break; }
+                if (FlatDistance(s[s.Length / 2], f.position) <= f.radius + segmentLength + margin) { keep = true; break; }
             if (!keep) roadsToRemove.Add(seg);
         }
         foreach (int seg in roadsToRemove)
@@ -255,6 +278,7 @@ public class WorldGenerator : MonoBehaviour
             return (h & 0xFFFFFF) / 16777216f;
         }
     }
+
     // Jak Hash, ale z trzech liczb (np. współrzędne kawałka i numer obiektu). Wynik 0-1.
     float Hash3(int a, int b, int c)
     {
@@ -268,6 +292,7 @@ public class WorldGenerator : MonoBehaviour
             return (h & 0xFFFFFF) / 16777216f;
         }
     }
+
     // ---------- Wysokość terenu ----------
 
     float NaturalHeight(float x, float z)
@@ -281,17 +306,33 @@ public class WorldGenerator : MonoBehaviour
         return h * k;
     }
 
-    float TerrainHeight(float x, float z, List<Vector3> road)
+    float TerrainHeight(float x, float z, List<Vector3> road, List<PoiPlacement> pois)
     {
-        float natural = NaturalHeight(x, z);
-        if (road.Count < 2) return natural;
+        float h = NaturalHeight(x, z);
+        float roadDist = float.MaxValue;
 
-        NearestRoad(x, z, road, out float dist, out float roadY);
+        // Przy drodze teren schodzi do jej wysokości (trochę niżej, pod nawierzchnię)
+        if (road.Count >= 2)
+        {
+            NearestRoad(x, z, road, out roadDist, out float roadY);
+            float t = Mathf.InverseLerp(roadHalfWidth + 1f, roadBlendDistance, roadDist);
+            h = Mathf.Lerp(roadY - 0.2f, h, Mathf.SmoothStep(0f, 1f, t));
+        }
 
-        // Pod drogą i tuż przy niej teren jest na wysokości drogi (trochę niżej), dalej wraca do naturalnej
-        float roadBed = roadY - 0.2f;
-        float t = Mathf.InverseLerp(roadHalfWidth + 1f, roadBlendDistance, dist);
-        return Mathf.Lerp(roadBed, natural, Mathf.SmoothStep(0f, 1f, t));
+        // Plac pod miejscem do odkrycia. Pod samą drogą zostaje jej podłoże.
+        if (pois != null && pois.Count > 0)
+        {
+            float roadMask = Mathf.InverseLerp(roadHalfWidth + 1f, roadHalfWidth + 6f, roadDist);
+            foreach (PoiPlacement poi in pois)
+            {
+                float d = FlatDistance(new Vector3(x, 0f, z), poi.position);
+                float t = Mathf.InverseLerp(poi.flatRadius, poi.flatRadius + poiBlendDistance, d);
+                float w = (1f - Mathf.SmoothStep(0f, 1f, t)) * roadMask;
+                h = Mathf.Lerp(h, poi.position.y, w);
+            }
+        }
+
+        return h;
     }
 
     static void NearestRoad(float x, float z, List<Vector3> road, out float dist, out float roadY)
@@ -364,6 +405,16 @@ public class WorldGenerator : MonoBehaviour
         return s;
     }
 
+    // Wektor "w prawo" od drogi w danym miejscu odcinka (t = 0..1)
+    Vector3 RoadRight(int seg, float t)
+    {
+        Vector3 fwd = CatmullRomTangent(GetControlPoint(seg - 1), GetControlPoint(seg),
+                                        GetControlPoint(seg + 1), GetControlPoint(seg + 2), t);
+        fwd.y = 0f;
+        fwd.Normalize();
+        return new Vector3(fwd.z, 0f, -fwd.x);
+    }
+
     // Odcinki drogi, które mogą leżeć w danym przedziale Z (droga zawsze idzie w stronę +Z)
     List<int> SegmentsInZRange(float zMin, float zMax)
     {
@@ -402,6 +453,56 @@ public class WorldGenerator : MonoBehaviour
                        + 3f * (-p0 + 3f * p1 - 3f * p2 + p3) * t2);
     }
 
+    // ---------- Miejsca do odkrycia ----------
+
+    // Czy przy tym odcinku drogi stoi miejsce, a jeśli tak, to gdzie (zawsze tak samo dla danego seeda)
+    bool TryGetPoi(int seg, out PoiPlacement placement)
+    {
+        placement = default;
+        if (poiPrefabs == null || poiPrefabs.Length == 0 || seg < firstPoiSegment) return false;
+        if (Hash(seg, 50) >= poiChance) return false;
+
+        float total = 0f;
+        foreach (PointOfInterest p in poiPrefabs) if (p != null) total += p.weight;
+        if (total <= 0f) return false;
+
+        float r = Hash(seg, 51) * total;
+        int index = -1;
+        for (int i = 0; i < poiPrefabs.Length; i++)
+        {
+            if (poiPrefabs[i] == null) continue;
+            if (r < poiPrefabs[i].weight) { index = i; break; }
+            r -= poiPrefabs[i].weight;
+        }
+        if (index < 0) return false;
+
+        PointOfInterest poi = poiPrefabs[index];
+        Vector3[] s = GetRoadSamples(seg);
+        int k = s.Length / 2;
+        Vector3 right = RoadRight(seg, (float)k / (s.Length - 1));
+
+        bool left = Hash(seg, 52) < 0.5f;
+        Vector3 side = left ? -right : right;
+
+        Vector3 pos = s[k] + side * (roadHalfWidth + poi.roadOffset);
+        pos.y = s[k].y - 0.2f; // na poziomie podłoża drogi
+
+        placement.prefabIndex = index;
+        placement.position = pos;
+        placement.rotation = Quaternion.LookRotation(-side); // wejście (+Z) w stronę drogi
+        placement.flatRadius = poi.flatRadius;
+        placement.leftSide = left;
+        return true;
+    }
+
+    List<PoiPlacement> CollectPois(float zMin, float zMax)
+    {
+        List<PoiPlacement> list = new List<PoiPlacement>();
+        foreach (int seg in SegmentsInZRange(zMin, zMax))
+            if (TryGetPoi(seg, out PoiPlacement p)) list.Add(p);
+        return list;
+    }
+
     // ---------- Budowanie siatek ----------
 
     GameObject BuildTile(Vector2Int tile)
@@ -412,13 +513,14 @@ public class WorldGenerator : MonoBehaviour
 
         List<Vector3> road = CollectRoadPolyline(z0 - roadBlendDistance - step,
                                                  z0 + tileSize + roadBlendDistance + step);
+        List<PoiPlacement> pois = CollectPois(z0 - 60f, z0 + tileSize + 60f);
 
         // Wysokości z ramką szerszą o 1 punkt: normalne liczone z sąsiadów = brak szwów między kawałkami
         int g = res + 3;
         float[,] h = new float[g, g];
         for (int iz = 0; iz < g; iz++)
             for (int ix = 0; ix < g; ix++)
-                h[ix, iz] = TerrainHeight(x0 + (ix - 1) * step, z0 + (iz - 1) * step, road);
+                h[ix, iz] = TerrainHeight(x0 + (ix - 1) * step, z0 + (iz - 1) * step, road, pois);
 
         int row = res + 1;
         Vector3[] verts = new Vector3[row * row];
@@ -448,16 +550,13 @@ public class WorldGenerator : MonoBehaviour
         GameObject go = CreateMeshObject($"Teren {tile.x},{tile.y}", new Vector3(x0, 0f, z0),
                                          verts, uvs, tris, terrainMaterial, true, normals);
         go.AddComponent<Surface>().type = SurfaceType.Grass;
-        ScatterNature(tile, go.transform, road);
+        ScatterNature(tile, go.transform, road, pois);
         return go;
     }
 
     GameObject BuildRoad(int seg)
     {
         Vector3[] s = GetRoadSamples(seg);
-        Vector3 p0 = GetControlPoint(seg - 1), p1 = GetControlPoint(seg);
-        Vector3 p2 = GetControlPoint(seg + 1), p3 = GetControlPoint(seg + 2);
-
         int n = s.Length;
         Vector3 origin = s[0];
         const float shoulder = 0.8f;   // pobocze
@@ -476,10 +575,7 @@ public class WorldGenerator : MonoBehaviour
             if (k > 0) dist += Vector3.Distance(s[k], s[k - 1]);
 
             // Kierunek z pochodnej krzywej, żeby kolejne odcinki łączyły się bez szczelin
-            Vector3 fwd = CatmullRomTangent(p0, p1, p2, p3, (float)k / (n - 1));
-            fwd.y = 0f;
-            fwd.Normalize();
-            Vector3 right = new Vector3(fwd.z, 0f, -fwd.x);
+            Vector3 right = RoadRight(seg, (float)k / (n - 1));
             rights[k] = right;
 
             Vector3 c = s[k] - origin;
@@ -526,6 +622,7 @@ public class WorldGenerator : MonoBehaviour
         GameObject line = CreateMeshObject("Linia", origin, lineVerts.ToArray(), null,
                                            lineTris.ToArray(), lineMaterial, false, null);
         line.transform.SetParent(go.transform, true);
+
         DecorateRoad(seg, go.transform, s, rights);
         return go;
     }
@@ -550,9 +647,10 @@ public class WorldGenerator : MonoBehaviour
         if (withCollider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
         return go;
     }
+
     // ---------- Przyroda i obiekty przy drodze ----------
 
-    void ScatterNature(Vector2Int tile, Transform parent, List<Vector3> road)
+    void ScatterNature(Vector2Int tile, Transform parent, List<Vector3> road, List<PoiPlacement> pois)
     {
         if (nature == null || nature.Length == 0) return;
 
@@ -582,7 +680,13 @@ public class WorldGenerator : MonoBehaviour
                 if (dist < item.minRoadDistance) continue;
             }
 
-            float y = TerrainHeight(x, z, road) - 0.05f; // lekko w ziemi, żeby nie "wisiało"
+            // Nie na placu miejsca do odkrycia
+            bool inPoi = false;
+            foreach (PoiPlacement poi in pois)
+                if (FlatDistance(new Vector3(x, 0f, z), poi.position) < poi.flatRadius + 3f) { inPoi = true; break; }
+            if (inPoi) continue;
+
+            float y = TerrainHeight(x, z, road, pois) - 0.05f;
             float scale = Mathf.Lerp(item.minScale, item.maxScale, Hash3(tile.x, tile.y, i * 5 + 3));
             Quaternion rot = Quaternion.Euler(0f, Hash3(tile.x, tile.y, i * 5 + 4) * 360f, 0f);
 
@@ -604,33 +708,42 @@ public class WorldGenerator : MonoBehaviour
 
     void DecorateRoad(int seg, Transform parent, Vector3[] s, Vector3[] rights)
     {
-        List<Vector3> road = CollectRoadPolyline(s[0].z - 40f, s[s.Length - 1].z + 40f);
+        float zMin = s[0].z - 40f, zMax = s[s.Length - 1].z + 40f;
+        List<Vector3> road = CollectRoadPolyline(zMin, zMax);
+        List<PoiPlacement> pois = CollectPois(zMin, zMax);
 
-        // Słupy po prawej stronie. Ostatnia próbka należy już do następnego odcinka.
-        if (polePrefab != null)
+        // Miejsce do odkrycia przy tym odcinku
+        bool hasPoi = TryGetPoi(seg, out PoiPlacement poi);
+        if (hasPoi)
+        {
+            GameObject poiObject = Instantiate(poiPrefabs[poi.prefabIndex].gameObject, poi.position, poi.rotation, parent);
+            poiObject.GetComponent<PointOfInterest>().poiId = seg;
+        }
+
+        // Słupy po prawej stronie (pomijamy, jeśli po prawej stoi miejsce)
+        if (polePrefab != null && !(hasPoi && !poi.leftSide))
         {
             for (int k = 0; k < s.Length - 1; k += poleEverySamples)
-                PlaceBeside(polePrefab, s[k], rights[k], false, parent, road);
+                PlaceBeside(polePrefab, s[k], rights[k], false, parent, road, pois);
         }
 
         // Znak kilometrowy po lewej, na początku co któregoś odcinka
         if (kmSignPrefab != null && seg >= 0 && seg % kmSignEverySegments == 0)
         {
-            GameObject sign = PlaceBeside(kmSignPrefab, s[0], rights[0], true, parent, road);
+            GameObject sign = PlaceBeside(kmSignPrefab, s[0], rights[0], true, parent, road, pois);
             TMPro.TextMeshPro text = sign.GetComponentInChildren<TMPro.TextMeshPro>();
             if (text != null) text.text = (seg / kmSignEverySegments).ToString();
         }
     }
 
     GameObject PlaceBeside(GameObject prefab, Vector3 roadPoint, Vector3 right, bool leftSide,
-                           Transform parent, List<Vector3> road)
+                           Transform parent, List<Vector3> road, List<PoiPlacement> pois)
     {
         Vector3 side = leftSide ? -right : right;
         Vector3 p = roadPoint + side * (roadHalfWidth + roadsideOffset);
-        p.y = TerrainHeight(p.x, p.z, road) - 0.05f;
+        p.y = TerrainHeight(p.x, p.z, road, pois) - 0.05f;
 
-        // Kierunek jazdy (z wektora "w prawo"). Obiekt patrzy w tę stronę,
-        // więc znak jest czytelny dla nadjeżdżającego kierowcy.
+        // Obiekt patrzy w kierunku jazdy, więc znak jest czytelny dla nadjeżdżającego kierowcy
         Vector3 roadForward = Vector3.Cross(right, Vector3.up);
         return Instantiate(prefab, p, Quaternion.LookRotation(roadForward), parent);
     }

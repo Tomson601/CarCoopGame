@@ -12,7 +12,7 @@ public class PlayerInteractor : MonoBehaviour
     public float followStrength = 15f;
     public float throwForce = 10f;
     public float pourDistance = 1.5f;
-
+    public float pumpDistance = 2f;
     private Pickupable held;
     private NetworkPickup heldNet; // null = przedmiot tylko lokalny (np. koło)
     private Collider playerCollider;
@@ -217,15 +217,17 @@ public class PlayerInteractor : MonoBehaviour
             return;
         }
 
-        FuelContainer target = pour ? FindPourTarget(source) : null;
-        if (pour && target == null) return;
+        // Przy dystrybutorze PPM napełnia trzymany pojemnik, w innym miejscu przelewa
+        FuelPump pump = pour ? FuelPump.FindNearest(source.transform.position, pumpDistance) : null;
+        FuelContainer target = (pour && pump == null) ? FindPourTarget(source) : null;
+        if (pour && pump == null && target == null) return;
 
         pourTimer += Time.deltaTime;
         if (pourTimer >= 0.25f)
         {
-            float amount = source.pourRate * pourTimer;
-            if (pour) source.PourIntoServerRpc(target.NetworkObject, amount);
-            else source.DumpServerRpc(amount);
+            if (pump != null) source.FillFromPumpServerRpc(pump.flowRate * pourTimer);
+            else if (pour) source.PourIntoServerRpc(target.NetworkObject, source.pourRate * pourTimer);
+            else source.DumpServerRpc(source.pourRate * pourTimer);
             pourTimer = 0f;
         }
     }
@@ -267,10 +269,18 @@ public class PlayerInteractor : MonoBehaviour
 
         if (!source.canPourFrom) return;
 
-        FuelContainer target = FindPourTarget(source);
-        if (target != null)
-            GUI.Label(new Rect(x, y + 25, 500, 25),
-                $"Cel: {target.Liters:0.0} / {target.capacity:0} L  ({target.contents.Value.Describe()})   [PPM - wlej]");
+        FuelPump pump = FuelPump.FindNearest(source.transform.position, pumpDistance);
+        if (pump != null)
+        {
+            GUI.Label(new Rect(x, y + 25, 500, 25), $"Dystrybutor: {pump.Label}   [PPM - nalej]");
+        }
+        else
+        {
+            FuelContainer target = FindPourTarget(source);
+            if (target != null)
+                GUI.Label(new Rect(x, y + 25, 500, 25),
+                    $"Cel: {target.Liters:0.0} / {target.capacity:0} L  ({target.contents.Value.Describe()})   [PPM - wlej]");
+        }
 
         GUI.Label(new Rect(x, y + 50, 500, 25), "[G - wylej na ziemię]");
     }

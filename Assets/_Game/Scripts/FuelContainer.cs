@@ -79,4 +79,13 @@ public class FuelContainer : NetworkBehaviour
         if (!canPourFrom) return;
         ServerTake(amount); // wylane na ziemię znika
     }
+    [ServerRpc(RequireOwnership = false)]
+    public void FillFromPumpServerRpc(float amount)
+    {
+        // Host sam sprawdza, czy pojemnik naprawdę jest przy dystrybutorze
+        FuelPump pump = FuelPump.FindNearest(transform.position, 3f);
+        if (pump == null) return;
+
+        ServerAdd(pump.GetMix(amount));
+    }
 }

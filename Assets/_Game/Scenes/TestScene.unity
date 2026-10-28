@@ -2234,11 +2234,18 @@ MonoBehaviour:
     maxScale: 1.8
     minRoadDistance: 7
   natureDensity: 25
-  polePrefab: {fileID: 0}
+  polePrefab: {fileID: 3415418034934402214, guid: 09dd9451219134643ace99a6fda7d846, type: 3}
   poleEverySamples: 12
   roadsideOffset: 3
-  kmSignPrefab: {fileID: 0}
+  kmSignPrefab: {fileID: 7224105042247935816, guid: d093d435944b5dd45a6baba47b1890ca, type: 3}
   kmSignEverySegments: 10
+  poiPrefabs:
+  - {fileID: 7293808525774495664, guid: 9bd6e7eb5e9c75047acd2800eeca2b89, type: 3}
+  - {fileID: 6249096492377772018, guid: 8c27f3b13d5cc9e4090ddb4fa4e5f2a2, type: 3}
+  - {fileID: 3704088664538219870, guid: 355a73d524c931f45b362e12433f580c, type: 3}
+  poiChance: 0.546
+  firstPoiSegment: 2
+  poiBlendDistance: 15
 --- !u!4 &1851283207
 Transform:
   m_ObjectHideFlags: 0
