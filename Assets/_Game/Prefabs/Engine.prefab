@@ -140,6 +140,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::EnginePart
   ShowTopMostFoldoutHeaderGroup: 1
   engineName: 1.6 R4
+  sounds: {fileID: 11400000, guid: ad14353424034b34cb734c0cf5672d32, type: 2}
   fuelType: 0
   maxTorque: 150
   idleRpm: 900
@@ -147,6 +148,8 @@ MonoBehaviour:
   engineBraking: 40
   maxFuelConsumption: 20
   heatOutput: 4
+  starterDrain: 2
+  alternatorOutput: 0.3
   torqueCurve:
     serializedVersion: 2
     m_Curve:

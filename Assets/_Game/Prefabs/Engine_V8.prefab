@@ -77,6 +77,10 @@ PrefabInstance:
       value: 6000
       objectReference: {fileID: 0}
     - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+      propertyPath: sounds
+      value: 
+      objectReference: {fileID: 11400000, guid: b50770259c550ed4597a7dcc0b040014, type: 2}
+    - target: {fileID: 8059795772322680426, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
       propertyPath: maxTorque
       value: 400
       objectReference: {fileID: 0}

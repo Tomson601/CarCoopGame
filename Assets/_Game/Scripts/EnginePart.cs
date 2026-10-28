@@ -12,6 +12,7 @@ public enum EngineFuelType
 public class EnginePart : NetworkBehaviour
 {
     public string engineName = "1.6 R4";
+    public EngineSoundSet sounds;
     public EngineFuelType fuelType = EngineFuelType.Petrol;
 
     [Tooltip("Maksymalny moment obrotowy w Nm")]

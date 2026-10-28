@@ -13,7 +13,13 @@ public class CarEngine : NetworkBehaviour
     // Zapłon. Widoczny w sieci i zachowany po zmianie kierowcy.
     private NetworkVariable<bool> engineOn = new NetworkVariable<bool>(
         false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
-
+    // Stan dla dźwięku u pozostałych graczy (wysyłany do 10 razy na sekundę)
+    private NetworkVariable<float> netRpm = new NetworkVariable<float>(
+        0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    private NetworkVariable<float> netThrottle = new NetworkVariable<float>(
+        0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
+    private NetworkVariable<float> netCrank = new NetworkVariable<float>(
+        0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Owner);
     private CarController car;
     private CarParts parts;
     private CarElectrics electrics;
@@ -42,7 +48,12 @@ public class CarEngine : NetworkBehaviour
     private float pendingOilDegrade;
     private float pendingOilBurn;
     private float flushTimer;
+    private float currentThrottle;
+    private float lastAudioSync;
+    private float lastMisfireSound;
 
+    // Dla dźwięku: przerywanie silnika (wywoływane u wszystkich graczy)
+    public event System.Action OnMisfire;
     GameTuning Tuning => GameTuning.Instance;
 
     // ---------- Do odczytu (HUD, CarController) ----------
@@ -58,7 +69,16 @@ public class CarEngine : NetworkBehaviour
 
     // 0 = rozgrzany olej, 1 = zimny
     public float ColdFactor => Mathf.InverseLerp(Tuning.warmOilTemperature, Tuning.ambientTemperature, oilTemp);
+    // ---------- Dla dźwięku (działa u wszystkich graczy) ----------
 
+    public bool IsEngineOn => engineOn.Value;
+    public float AudioRpm => IsOwner ? engineRpm : netRpm.Value;
+    public float AudioThrottle => IsOwner ? currentThrottle : netThrottle.Value;
+
+    // 0 = rozrusznik nie kręci, poniżej 0.25 = tylko klika, więcej = kręci
+    public float AudioCrank => IsOwner
+        ? (isCranking ? Mathf.Max(crankStrength, 0.01f) : 0f)
+        : netCrank.Value;
     void Awake()
     {
         car = GetComponent<CarController>();
@@ -119,8 +139,11 @@ public class CarEngine : NetworkBehaviour
     }
 
     // Zwraca moment na tylnej osi (Nm)
+    // Zwraca moment na tylnej osi (Nm)
     public float Simulate(float throttle)
     {
+        currentThrottle = throttle;
+
         float torque = CalculateDriveTorque(throttle);
         UpdateFuel(throttle);
         UpdateTemperature(throttle);
@@ -128,7 +151,36 @@ public class CarEngine : NetworkBehaviour
         UpdateAlternator();
         FlushEngineState();
         electrics.Tick(Time.fixedDeltaTime);
+        SyncAudioState(throttle);
         return torque;
+    }
+
+    void SyncAudioState(float throttle)
+    {
+        if (Time.time - lastAudioSync < 0.1f) return;
+        lastAudioSync = Time.time;
+
+        // Wysyłaj tylko przy wyraźnej zmianie
+        if (Mathf.Abs(netRpm.Value - engineRpm) > 30f) netRpm.Value = engineRpm;
+        if (Mathf.Abs(netThrottle.Value - throttle) > 0.1f) netThrottle.Value = throttle;
+
+        float crank = AudioCrank;
+        bool crankChanged = (crank == 0f) != (netCrank.Value == 0f);
+        if (crankChanged || Mathf.Abs(netCrank.Value - crank) > 0.05f) netCrank.Value = crank;
+    }
+
+    void TriggerMisfire()
+    {
+        // Najwyżej kilka strzałów na sekundę, żeby nie zalać sieci
+        if (Time.time - lastMisfireSound < 0.15f) return;
+        lastMisfireSound = Time.time;
+        MisfireRpc();
+    }
+
+    [Rpc(SendTo.Everyone)]
+    void MisfireRpc()
+    {
+        OnMisfire?.Invoke();
     }
 
     // ---------- Napęd ----------
@@ -189,7 +241,7 @@ public class CarEngine : NetworkBehaviour
         float healthFactor = engine.health.Value / 100f;
         float powerFactor = fuelQuality * Mathf.Lerp(0.4f, 1f, healthFactor);
         bool misfire = fuelQuality < 0.85f && Random.value < (0.85f - fuelQuality) * 0.5f;
-
+        if (misfire) TriggerMisfire();
         // Luz
         if (g == 0)
         {

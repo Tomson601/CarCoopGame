@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a6dec7823df9abf438f76619f7b4592c, type: 3}
+  m_Name: EngineSounds_V8
+  m_EditorClassIdentifier: Assembly-CSharp::EngineSoundSet
+  loops:
+  - clip: {fileID: 8300000, guid: f295083234a427546ae4a88bbfb311fd, type: 3}
+    rpm: 900
+  - clip: {fileID: 8300000, guid: 0d17f95d726362d4ea6b5af18c790f11, type: 3}
+    rpm: 2000
+  - clip: {fileID: 8300000, guid: d4f53870d77229d498708b4574da9e8c, type: 3}
+    rpm: 3500
+  - clip: {fileID: 8300000, guid: d9a08d87cd38de44cbfdc295c6ffaad8, type: 3}
+    rpm: 5000
+  - clip: {fileID: 8300000, guid: 2b2acc02122366e4a874b761e28a2772, type: 3}
+    rpm: 6500
+  starterLoop: {fileID: 8300000, guid: 4b2b05cd65266b44bbdcc7b6ae4adfcb, type: 3}
+  starterClick: {fileID: 8300000, guid: d3c0540f8e3539541888f4a64a8be47b, type: 3}
+  engineStart: {fileID: 8300000, guid: d0c3b1e6c5e57d145937f09a76026071, type: 3}
+  engineStop: {fileID: 8300000, guid: 65018ad256f62ce4299ca269c8ed0ecf, type: 3}
+  misfires:
+  - {fileID: 8300000, guid: 9ed47d0225da8e3408b0bf70818b2ce4, type: 3}
+  - {fileID: 8300000, guid: 8977acb755e33b54d90af73a92c87cde, type: 3}
+  - {fileID: 8300000, guid: f26338f0cdd4a4643857e5c74c6aa525, type: 3}
+  volume: 0.8
