@@ -90,6 +90,9 @@ public class CarController : NetworkBehaviour
     private float rollEngineRpm;       // obroty, jakie koła wymuszają na silniku przez wrzucony bieg
     private float pendingBatteryDelta; // zmiana naładowania, która jeszcze nie poszła do hosta
     private bool gearHolding; // zgaszony silnik na biegu trzyma stojące auto
+    private float[] pendingTireWear = new float[4];
+    private float tireFlushTimer;
+    private SurfaceType[] wheelSurfaces = new SurfaceType[4];
     public ulong DriverId => GetOccupant(0);
     public bool HasDriver => DriverId != NoOne;
     public bool IsDrivenByMe => IsOwner && DriverId == NetworkManager.LocalClientId;
@@ -283,6 +286,7 @@ public class CarController : NetworkBehaviour
         UpdateWear(throttle);
         UpdateElectrics();
         FlushEngineState();
+        UpdateTires();
 
         rearLeft.motorTorque = driveTorque * 0.5f;
         rearRight.motorTorque = driveTorque * 0.5f;
@@ -486,7 +490,112 @@ public class CarController : NetworkBehaviour
         float alternatorFactor = Mathf.Clamp01(engineRpm / (engine.idleRpm * 1.5f));
         pendingBatteryDelta += engine.alternatorOutput * alternatorFactor * Time.fixedDeltaTime;
     }
+    // ---------- Opony ----------
 
+    void UpdateTires()
+    {
+        UpdateTire(frontLeft, 0);
+        UpdateTire(frontRight, 1);
+        UpdateTire(rearLeft, 2);
+        UpdateTire(rearRight, 3);
+
+        tireFlushTimer += Time.fixedDeltaTime;
+        if (tireFlushTimer >= 1f)
+        {
+            SyncTireWearServerRpc(pendingTireWear[0], pendingTireWear[1], pendingTireWear[2], pendingTireWear[3]);
+            for (int i = 0; i < 4; i++) pendingTireWear[i] = 0f;
+            tireFlushTimer = 0f;
+        }
+    }
+
+    void UpdateTire(WheelCollider col, int index)
+    {
+        if (!col.enabled) return;
+
+        TirePart tire = GetTireOn(col);
+        bool grounded = col.GetGroundHit(out WheelHit hit);
+        SurfaceType surface = grounded ? GetSurface(hit) : SurfaceType.Dirt;
+        wheelSurfaces[index] = surface;
+
+        // Przyczepność
+        float grip;
+        if (tire == null) grip = 0.3f;                  // goła felga
+        else if (tire.health.Value <= 0f) grip = 0.35f; // flak
+        else grip = tire.GetGrip(surface);
+        SetGrip(col, grip);
+
+        // Zużycie: droga + przede wszystkim poślizg
+        if (tire != null && grounded)
+        {
+            float speed = Mathf.Abs(col.rpm) * 2f * Mathf.PI * col.radius / 60f;
+            float slip = Mathf.Abs(hit.forwardSlip) + Mathf.Abs(hit.sidewaysSlip);
+            pendingTireWear[index] += tire.wearRate * tire.GetWearMultiplier(surface)
+                                      * (speed * 0.001f + slip * 2f) * Time.fixedDeltaTime;
+        }
+    }
+
+    TirePart GetTireOn(WheelCollider col)
+    {
+        CarPart part = parts.GetMountedOnCollider(col);
+        if (part == null) return null;
+        WheelPart rim = part.GetComponent<WheelPart>();
+        if (rim == null) return null;
+        return rim.GetTire();
+    }
+
+    SurfaceType GetSurface(WheelHit hit)
+    {
+        Surface surface = hit.collider.GetComponentInParent<Surface>();
+        return surface != null ? surface.type : SurfaceType.Dirt;
+    }
+
+    void SetGrip(WheelCollider col, float grip)
+    {
+        WheelFrictionCurve forward = col.forwardFriction;
+        forward.stiffness = grip;
+        col.forwardFriction = forward;
+
+        WheelFrictionCurve sideways = col.sidewaysFriction;
+        sideways.stiffness = grip;
+        col.sidewaysFriction = sideways;
+    }
+
+    [ServerRpc]
+    void SyncTireWearServerRpc(float fl, float fr, float rl, float rr)
+    {
+        ApplyTireWear(frontLeft, fl);
+        ApplyTireWear(frontRight, fr);
+        ApplyTireWear(rearLeft, rl);
+        ApplyTireWear(rearRight, rr);
+    }
+
+    void ApplyTireWear(WheelCollider col, float wear)
+    {
+        if (wear <= 0f) return;
+        TirePart tire = GetTireOn(col);
+        if (tire != null) tire.ServerWear(wear);
+    }
+
+    string GetTireText(WheelCollider col, string label)
+    {
+        CarPart part = parts.GetMountedOnCollider(col);
+        if (part == null) return $"{label}: brak";
+
+        TirePart tire = GetTireOn(col);
+        if (tire == null) return $"{label}: goła felga!";
+        if (tire.health.Value <= 0f) return $"{label}: FLAK";
+        return $"{label}: {tire.health.Value:0}%";
+    }
+
+    string GetSurfaceName(SurfaceType surface)
+    {
+        return surface switch
+        {
+            SurfaceType.Asphalt => "asfalt",
+            SurfaceType.Grass => "trawa",
+            _ => "ziemia"
+        };
+    }
     void FlushEngineState()
     {
         fuelFlushTimer += Time.fixedDeltaTime;
@@ -890,16 +999,13 @@ public class CarController : NetworkBehaviour
             GUI.color = Color.white;
         }
 
-        GUI.Label(new Rect(20, 220, 600, 25),
-            "R (przytrzymaj) odpal/zgaś, W gaz, S hamulec, Spacja ręczny (przełącz), Shift/Ctrl bieg");
+        // Opony
+        GUI.Label(new Rect(20, 220, 700, 25),
+            $"Opony: {GetTireText(frontLeft, "LP")} | {GetTireText(frontRight, "PP")} | " +
+            $"{GetTireText(rearLeft, "LT")} | {GetTireText(rearRight, "PT")}  |  " +
+            $"nawierzchnia: {GetSurfaceName(wheelSurfaces[2])}");
 
-        // DIAGNOSTYKA - usuniemy, gdy znajdziemy problem
-        GUI.color = Color.magenta;
-        GUI.Label(new Rect(20, 250, 900, 25),
-            $"motor: {rearLeft.motorTorque:0} Nm | hamulec tył: {rearLeft.brakeTorque:0} Nm | " +
-            $"rpm koła: {rearLeft.rpm:0} | na ziemi: {rearLeft.isGrounded} | " +
-            $"śpi: {rb.IsSleeping()} | kinematyczne: {rb.isKinematic}");
-        GUI.color = Color.white;
-        //////
+        GUI.Label(new Rect(20, 245, 600, 25),
+            "R (przytrzymaj) odpal/zgaś, W gaz, S hamulec, Spacja ręczny (przełącz), Shift/Ctrl bieg");
     }
 }

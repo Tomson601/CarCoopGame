@@ -17,7 +17,8 @@ public class PlayerInteractor : MonoBehaviour
     private NetworkPickup heldNet; // null = przedmiot tylko lokalny (np. koło)
     private Collider playerCollider;
     private float pourTimer;
-
+    private string infoMessage;
+    private float infoMessageTime = -10f;
     void Start()
     {
         playerCollider = GetComponent<CharacterController>();
@@ -33,6 +34,8 @@ public class PlayerInteractor : MonoBehaviour
             if (held == null) TryPickup();
             else if (!TryMount()) Drop();
         }
+        
+        if (held == null && kb.tKey.wasPressedThisFrame) TryRemoveTire();
 
         if (held != null && mouse.leftButton.wasPressedThisFrame)
         {
@@ -71,13 +74,20 @@ public class PlayerInteractor : MonoBehaviour
         Pickupable p = hit.collider.GetComponentInParent<Pickupable>();
         if (p == null) return;
 
+        // Opona założona na felgę: E bierze całe koło. Oponę zdejmuje się klawiszem T.
+        CarPart part = p.GetComponent<CarPart>();
+        if (part != null && part.IsMounted && part.currentCar.OwnerPart != null)
+        {
+            part = part.currentCar.OwnerPart;
+            p = part.pickupable;
+        }
+
         NetworkPickup np = p.GetComponent<NetworkPickup>();
         if (np != null && np.holderId.Value != NetworkPickup.NoHolder) return; // ktoś trzyma
 
         held = p;
         heldNet = np;
 
-        CarPart part = p.GetComponent<CarPart>();
         if (part != null && part.IsMounted)
             part.currentCar.RequestDetachServerRpc(part.slotIndex); // odkręć i daj mi
         else if (np != null)
@@ -85,6 +95,56 @@ public class PlayerInteractor : MonoBehaviour
 
         held.rb.useGravity = false;
         SetIgnorePlayer(true);
+    }
+
+    void TryRemoveTire()
+    {
+        Ray ray = new Ray(cameraTransform.position, cameraTransform.forward);
+        if (!Physics.Raycast(ray, out RaycastHit hit, reachDistance)) return;
+
+        Pickupable p = hit.collider.GetComponentInParent<Pickupable>();
+        if (p == null) return;
+
+        CarPart part = p.GetComponent<CarPart>();
+        if (part == null) return;
+
+        // Patrzymy na oponę albo na felgę z oponą
+        CarParts rimSlots;
+        int slot;
+        if (part.type == PartType.Tire && part.IsMounted)
+        {
+            rimSlots = part.currentCar;
+            slot = part.slotIndex;
+        }
+        else
+        {
+            rimSlots = part.GetComponent<CarParts>();
+            slot = rimSlots != null ? rimSlots.FindMountedSlot(PartType.Tire) : -1;
+        }
+
+        if (rimSlots == null || slot < 0) return;
+
+        if (rimSlots.LockedByParent)
+        {
+            ShowInfo("Najpierw zdejmij koło z auta");
+            return;
+        }
+
+        CarPart tire = rimSlots.GetMountedPartAt(slot);
+        if (tire == null || tire.net.holderId.Value != NetworkPickup.NoHolder) return;
+
+        held = tire.pickupable;
+        heldNet = tire.net;
+        rimSlots.RequestDetachServerRpc(slot);
+
+        held.rb.useGravity = false;
+        SetIgnorePlayer(true);
+    }
+
+    void ShowInfo(string message)
+    {
+        infoMessage = message;
+        infoMessageTime = Time.time;
     }
 
     void Drop()
@@ -191,6 +251,9 @@ public class PlayerInteractor : MonoBehaviour
 
     void OnGUI()
     {
+        if (Time.time - infoMessageTime < 2f)
+            GUI.Label(new Rect(Screen.width / 2f - 150f, Screen.height / 2f + 100f, 300, 25), infoMessage);
+
         if (held == null) return;
 
         FuelContainer source = held.GetComponent<FuelContainer>();

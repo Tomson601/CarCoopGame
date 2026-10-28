@@ -12,11 +12,18 @@ public class CarParts : NetworkBehaviour
 
     private NetworkList<ulong> mounted;
     private CarPart[] mountedParts;
+    private CarPart ownerPart; // jeśli te sloty należą do części (np. felga), to ta część
+
+    public CarPart OwnerPart => ownerPart;
+
+    // Sloty części, która sama jest zamontowana (np. felga na aucie), są zablokowane
+    public bool LockedByParent => ownerPart != null && ownerPart.IsMounted;
 
     void Awake()
     {
         mounted = new NetworkList<ulong>();
         mountedParts = new CarPart[slots.Length];
+        ownerPart = GetComponent<CarPart>();
     }
 
     public override void OnNetworkSpawn()
@@ -46,7 +53,8 @@ public class CarParts : NetworkBehaviour
         return (mounted != null && i < mounted.Count) ? mounted[i] : None;
     }
 
-    // Np. GetMounted<EnginePart>() zwraca zamontowany silnik albo null
+    // ---------- Szukanie części ----------
+
     public T GetMounted<T>() where T : Component
     {
         foreach (CarPart part in mountedParts)
@@ -58,10 +66,37 @@ public class CarParts : NetworkBehaviour
         return null;
     }
 
+    public CarPart GetMountedPart(PartType type)
+    {
+        foreach (CarPart part in mountedParts)
+            if (part != null && part.type == type) return part;
+        return null;
+    }
+
+    public CarPart GetMountedPartAt(int slot)
+    {
+        return (slot >= 0 && slot < mountedParts.Length) ? mountedParts[slot] : null;
+    }
+
+    public int FindMountedSlot(PartType type)
+    {
+        for (int i = 0; i < mountedParts.Length; i++)
+            if (mountedParts[i] != null && mountedParts[i].type == type) return i;
+        return -1;
+    }
+
+    public CarPart GetMountedOnCollider(WheelCollider col)
+    {
+        for (int i = 0; i < slots.Length; i++)
+            if (slots[i].wheelCollider == col) return mountedParts[i];
+        return null;
+    }
+
     public bool TryFindEmptySlot(Vector3 position, PartType type, out int index, out float distance)
     {
         index = -1;
         distance = float.MaxValue;
+        if (LockedByParent) return false;
 
         for (int i = 0; i < slots.Length; i++)
         {
@@ -83,6 +118,7 @@ public class CarParts : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void RequestDetachServerRpc(int slot, ServerRpcParams rpcParams = default)
     {
+        if (LockedByParent) return;
         if (slot < 0 || slot >= mounted.Count) return;
 
         ulong id = mounted[slot];
@@ -97,12 +133,13 @@ public class CarParts : NetworkBehaviour
     [ServerRpc(RequireOwnership = false)]
     public void RequestMountServerRpc(int slot, NetworkObjectReference partRef, ServerRpcParams rpcParams = default)
     {
+        if (LockedByParent) return;
         if (slot < 0 || slot >= mounted.Count) return;
         if (mounted[slot] != None) return;
         if (!partRef.TryGet(out NetworkObject no)) return;
 
         CarPart part = no.GetComponent<CarPart>();
-        if (part == null || part.type != slots[slot].acceptedType) return; // zły typ części
+        if (part == null || part.type != slots[slot].acceptedType) return;
         if (mounted.Contains(no.NetworkObjectId)) return;
 
         NetworkPickup pickup = no.GetComponent<NetworkPickup>();
@@ -116,8 +153,11 @@ public class CarParts : NetworkBehaviour
 
     void LateUpdate()
     {
-        if (!IsSpawned) return;
+        if (IsSpawned) UpdateMounts();
+    }
 
+    public void UpdateMounts()
+    {
         for (int i = 0; i < slots.Length; i++)
         {
             ulong id = GetMountedId(i);
@@ -136,23 +176,28 @@ public class CarParts : NetworkBehaviour
                 part = no.GetComponent<CarPart>();
                 part.SetMounted(true, this, i);
                 mountedParts[i] = part;
-
-                WheelPart wheel = part.GetComponent<WheelPart>();
-                if (wheel != null && slots[i].wheelCollider != null)
-                    slots[i].wheelCollider.radius = wheel.radius;
             }
 
             if (slots[i].wheelCollider != null)
+            {
                 slots[i].wheelCollider.enabled = (part != null);
 
+                // Promień koła zależy od opony (albo jej braku), u wszystkich graczy
+                if (part != null)
+                {
+                    WheelPart wheel = part.GetComponent<WheelPart>();
+                    if (wheel != null) slots[i].wheelCollider.radius = wheel.GetEffectiveRadius();
+                }
+            }
+
             if (part != null)
+            {
                 part.transform.SetPositionAndRotation(slots[i].transform.position, slots[i].transform.rotation);
+
+                // Część z własnymi slotami (felga z oponą) od razu ustawia swoje części, bez opóźnienia klatki
+                CarParts nested = part.GetComponent<CarParts>();
+                if (nested != null && nested.IsSpawned) nested.UpdateMounts();
+            }
         }
-    }
-    public CarPart GetMountedPart(PartType type)
-    {
-        foreach (CarPart part in mountedParts)
-            if (part != null && part.type == type) return part;
-        return null;
     }
 }
