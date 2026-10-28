@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -8382074997020816727, guid: c0f9caf75275ef04cae0ef26aee8ba16, type: 3}
+      propertyPath: prefabId
+      value: Tire_Offroad
+      objectReference: {fileID: 0}
     - target: {fileID: 2096228988837929522, guid: c0f9caf75275ef04cae0ef26aee8ba16, type: 3}
       propertyPath: GlobalObjectIdHash
       value: 2650417231

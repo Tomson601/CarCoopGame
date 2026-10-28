@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 3061971999610591995}
   - component: {fileID: 1058202154107197268}
   - component: {fileID: 8124758912725569870}
+  - component: {fileID: -3062670740077549718}
   m_Layer: 0
   m_Name: Radiator
   m_TagString: Untagged
@@ -80,14 +81,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 2928351295
+  GlobalObjectIdHash: 1220182216
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
   Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  m_InScenePlaced: 1
+  m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
@@ -226,6 +227,7 @@ MonoBehaviour:
     diesel: 0
     oil: 0
     coolant: 6
+    usedOil: 0
   canPourFrom: 1
   pourRate: 1
   contents:
@@ -237,6 +239,7 @@ MonoBehaviour:
       diesel: 0
       oil: 0
       coolant: 0
+      usedOil: 0
 --- !u!114 &8124758912725569870
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -252,6 +255,19 @@ MonoBehaviour:
   radiatorName: "Ch\u0142odnica standardowa"
   coolingPower: 1
   liquid: {fileID: 0}
+--- !u!114 &-3062670740077549718
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4642633203993722059}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65df2f6bc27d79c4680af70a934a15d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableObject
+  prefabId: Radiator
 --- !u!1 &6557923465845450470
 GameObject:
   m_ObjectHideFlags: 0

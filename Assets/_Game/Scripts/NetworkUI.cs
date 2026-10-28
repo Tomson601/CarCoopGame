@@ -13,24 +13,33 @@ public class NetworkUI : MonoBehaviour
 
         if (nm.IsClient || nm.IsServer)
         {
-            string status = nm.IsHost ? "Host" : "Klient";
+            string status = nm.IsHost ? "Host  (F5 - zapis)" : "Klient";
             GUI.Label(new Rect(10, Screen.height - 30, 300, 25), status);
             return;
         }
 
         UnityTransport transport = nm.GetComponent<UnityTransport>();
 
-        GUI.Label(new Rect(10, 10, 200, 25), "Adres IP hosta:");
-        ip = GUI.TextField(new Rect(10, 35, 200, 25), ip);
-
-        if (GUI.Button(new Rect(10, 70, 200, 35), "Hostuj grę"))
+        if (GUI.Button(new Rect(10, 10, 200, 35), "Nowa gra"))
         {
-            // 0.0.0.0 = przyjmuj połączenia z sieci, nie tylko z tego komputera
             transport.SetConnectionData("127.0.0.1", Port, "0.0.0.0");
-            nm.StartHost();
+            if (nm.StartHost())
+                GameState.Instance.ServerSetWorld(Random.Range(1, int.MaxValue), new Vector3(0f, 1f, 0f));
         }
 
-        if (GUI.Button(new Rect(10, 110, 200, 35), "Dołącz"))
+        bool hasSave = SaveManager.Instance != null && SaveManager.Instance.HasSave;
+        GUI.enabled = hasSave;
+        if (GUI.Button(new Rect(10, 50, 200, 35), hasSave ? "Wczytaj grę" : "Brak zapisu"))
+        {
+            transport.SetConnectionData("127.0.0.1", Port, "0.0.0.0");
+            if (nm.StartHost()) SaveManager.Instance.LoadGame();
+        }
+        GUI.enabled = true;
+
+        GUI.Label(new Rect(10, 100, 200, 25), "Adres IP hosta:");
+        ip = GUI.TextField(new Rect(10, 125, 200, 25), ip);
+
+        if (GUI.Button(new Rect(10, 160, 200, 35), "Dołącz"))
         {
             transport.SetConnectionData(ip, Port);
             nm.StartClient();

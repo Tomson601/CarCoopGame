@@ -18,6 +18,7 @@ GameObject:
   - component: {fileID: 5156969250070750451}
   - component: {fileID: 5457449352686878484}
   - component: {fileID: 3470257055484611949}
+  - component: {fileID: -5478693686222653838}
   m_Layer: 0
   m_Name: Engine
   m_TagString: Untagged
@@ -314,6 +315,19 @@ MonoBehaviour:
       MinSecondsBetweenUpdates: 0
       MaxSecondsBetweenUpdates: 0
     m_InternalValue: 18446744073709551615
+--- !u!114 &-5478693686222653838
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8125677192079327439}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65df2f6bc27d79c4680af70a934a15d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableObject
+  prefabId: Engine
 --- !u!1 &8245889912135399145
 GameObject:
   m_ObjectHideFlags: 0

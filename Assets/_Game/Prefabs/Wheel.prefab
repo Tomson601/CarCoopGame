@@ -244,6 +244,7 @@ GameObject:
   - component: {fileID: 1513910340831966845}
   - component: {fileID: 3531790107018071087}
   - component: {fileID: 1768836093809097657}
+  - component: {fileID: 1044713821866832474}
   m_Layer: 0
   m_Name: Wheel
   m_TagString: Untagged
@@ -452,6 +453,7 @@ MonoBehaviour:
   - {fileID: 422113789277713562}
   startingParts:
   - {fileID: 6983144422615674470, guid: c0f9caf75275ef04cae0ef26aee8ba16, type: 3}
+  spawnStartingParts: 1
 --- !u!114 &1768836093809097657
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -467,6 +469,19 @@ MonoBehaviour:
   rimName: Felga stalowa
   rimRadius: 0.25
   tireCollider: {fileID: 4066386158931793324}
+--- !u!114 &1044713821866832474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5926007982110836099}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65df2f6bc27d79c4680af70a934a15d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableObject
+  prefabId: Wheel
 --- !u!1 &8910023908204163236
 GameObject:
   m_ObjectHideFlags: 0

@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -5478693686222653838, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
+      propertyPath: prefabId
+      value: Engine_V8
+      objectReference: {fileID: 0}
     - target: {fileID: 1329313577967392974, guid: 4502eb67d741da74a9b3850a0877c7c9, type: 3}
       propertyPath: GlobalObjectIdHash
       value: 4226805839

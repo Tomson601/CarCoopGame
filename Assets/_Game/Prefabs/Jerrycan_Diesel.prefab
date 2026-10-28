@@ -10,7 +10,7 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: 558037511368110424, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
       propertyPath: GlobalObjectIdHash
-      value: 3849639701
+      value: 1061962401
       objectReference: {fileID: 0}
     - target: {fileID: 780426533564323867, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
       propertyPath: startContents.diesel

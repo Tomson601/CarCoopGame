@@ -8,6 +8,10 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -5238361601004933328, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
+      propertyPath: prefabId
+      value: CoolantBottle
+      objectReference: {fileID: 0}
     - target: {fileID: 558037511368110424, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
       propertyPath: GlobalObjectIdHash
       value: 1529439396

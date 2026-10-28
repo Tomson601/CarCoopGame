@@ -9,7 +9,8 @@ public class CarParts : NetworkBehaviour
 
     [Tooltip("Część montowana przy starcie w slocie o tym samym numerze (może być puste)")]
     public GameObject[] startingParts;
-
+    // Przy wczytywaniu gry części przychodzą z zapisu, więc startowych nie tworzymy
+    [HideInInspector] public bool spawnStartingParts = true;
     private NetworkList<ulong> mounted;
     private CarPart[] mountedParts;
     private CarPart ownerPart; // jeśli te sloty należą do części (np. felga), to ta część
@@ -32,7 +33,7 @@ public class CarParts : NetworkBehaviour
 
         if (mounted.Count == 0)
             for (int i = 0; i < slots.Length; i++) mounted.Add(None);
-
+        if (!spawnStartingParts) return;
         for (int i = 0; i < slots.Length; i++)
         {
             if (startingParts == null || i >= startingParts.Length || startingParts[i] == null) continue;
@@ -148,7 +149,15 @@ public class CarParts : NetworkBehaviour
         pickup.holderId.Value = NetworkPickup.NoHolder;
         mounted[slot] = no.NetworkObjectId;
     }
+    // Tylko na hoście, przy wczytywaniu gry: zamontuj część bez sprawdzania, kto ją trzyma
+    public void ServerMountLoaded(int slot, CarPart part)
+    {
+        if (!IsServer || part == null || slot < 0 || slot >= mounted.Count) return;
 
+        mounted[slot] = part.net.NetworkObjectId;
+        part.SetMounted(true, this, slot);
+        mountedParts[slot] = part;
+    }
     // ---------- U wszystkich graczy: ustaw części na miejscach ----------
 
     void LateUpdate()

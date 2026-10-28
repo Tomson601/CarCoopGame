@@ -49,10 +49,9 @@ public class FirstPersonController : NetworkBehaviour
         GameObject lobbyCam = GameObject.Find("LobbyCamera");
         if (lobbyCam != null) lobbyCam.SetActive(false);
 
-        // Losowy punkt startu, żeby gracze nie pojawili się w sobie
-        controller.enabled = false;
-        transform.position = new Vector3(Random.Range(-3f, 3f), 1f, Random.Range(-3f, 3f));
-        controller.enabled = true;
+        // Start w miejscu z zapisu (albo przy starcie świata), z małym przesunięciem
+        Vector3 spawn = GameState.Instance != null ? GameState.Instance.SpawnPoint : new Vector3(0f, 1f, 0f);
+        TeleportTo(spawn + new Vector3(Random.Range(-3f, 3f), 0.5f, Random.Range(-3f, 3f)));
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
@@ -91,6 +90,15 @@ public class FirstPersonController : NetworkBehaviour
         seatYaw = 0f;
         controller.enabled = (seat == null);
         canMove = (seat == null);
+    }
+    public void TeleportTo(Vector3 position)
+    {
+        controller.enabled = false;
+        transform.position = position;
+        controller.enabled = true;
+
+        // Od razu zbuduj teren w nowym miejscu, żeby nie spaść
+        if (WorldGenerator.Instance != null) WorldGenerator.Instance.BuildNow();
     }
     // Unity wywołuje to, gdy CharacterController wpada na collider
     void OnControllerColliderHit(ControllerColliderHit hit)

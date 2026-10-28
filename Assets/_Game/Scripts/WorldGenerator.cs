@@ -93,7 +93,15 @@ public class WorldGenerator : MonoBehaviour
     // Miejsca, w których host już utworzył łup. Łup się nie odnawia po ponownym zbudowaniu miejsca.
     private static readonly HashSet<int> lootedPois = new HashSet<int>();
     public static bool MarkPoiLooted(int id) => lootedPois.Add(id);
+    public static WorldGenerator Instance { get; private set; }
 
+    public static List<int> GetLootedPois() => new List<int>(lootedPois);
+
+    public static void SetLootedPois(List<int> ids)
+    {
+        lootedPois.Clear();
+        if (ids != null) foreach (int id in ids) lootedPois.Add(id);
+    }
     private Vector2 noiseOffset;
     private float nextUpdate;
 
@@ -117,6 +125,7 @@ public class WorldGenerator : MonoBehaviour
 
     void Awake()
     {
+        Instance = this;
         lootedPois.Clear();
         noiseOffset = new Vector2(Hash(0, 100) * 10000f, Hash(0, 101) * 10000f);
         GetControlPoint(straightStartSegments + 2);
@@ -131,7 +140,31 @@ public class WorldGenerator : MonoBehaviour
         nextUpdate = Time.time + 0.25f;
         UpdateChunks(GatherFocus(), maxBuildsPerUpdate);
     }
+    // Buduje od razu wszystkie potrzebne kawałki (np. po wczytaniu gry albo teleporcie)
+    public void BuildNow()
+    {
+        UpdateChunks(GatherFocus(), int.MaxValue);
+    }
 
+    // Zmiana seeda: usuwamy cały świat i budujemy nowy
+    public void SetSeed(int newSeed)
+    {
+        if (newSeed == seed) return;
+
+        foreach (GameObject go in tileObjects.Values) DestroyChunk(go);
+        foreach (GameObject go in roadObjects.Values) DestroyChunk(go);
+        tileObjects.Clear();
+        roadObjects.Clear();
+        roadSamples.Clear();
+        controlPoints.Clear();
+        heading = 0f;
+
+        seed = newSeed;
+        noiseOffset = new Vector2(Hash(0, 100) * 10000f, Hash(0, 101) * 10000f);
+        GetControlPoint(straightStartSegments + 2);
+
+        BuildNow();
+    }
     List<Focus> GatherFocus()
     {
         List<Focus> focus = new List<Focus>();

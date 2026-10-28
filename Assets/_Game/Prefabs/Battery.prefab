@@ -129,6 +129,7 @@ GameObject:
   - component: {fileID: 8208517538832718773}
   - component: {fileID: 1252413180239285965}
   - component: {fileID: 5042011561944093812}
+  - component: {fileID: -3631911871095468310}
   m_Layer: 0
   m_Name: Battery
   m_TagString: Untagged
@@ -191,14 +192,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d5a57f767e5e46a458fc5d3c628d0cbb, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Unity.Netcode.Runtime::Unity.Netcode.NetworkObject
-  GlobalObjectIdHash: 1363849541
+  GlobalObjectIdHash: 3360795278
   InScenePlacedSourceGlobalObjectIdHash: 0
   m_InScenePlacedDisabledByDefault: 0
   DeferredDespawnTick: 0
   Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  m_InScenePlaced: 1
+  m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
@@ -339,3 +340,16 @@ MonoBehaviour:
   slotIndex: -1
   pickupable: {fileID: 0}
   net: {fileID: 0}
+--- !u!114 &-3631911871095468310
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9210639032138276391}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65df2f6bc27d79c4680af70a934a15d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableObject
+  prefabId: Battery

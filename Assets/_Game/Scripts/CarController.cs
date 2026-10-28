@@ -51,7 +51,10 @@ public class CarController : NetworkBehaviour
     public float SpeedKmh => rb.linearVelocity.magnitude * 3.6f;
     public bool HandbrakeOn => handbrakeOn.Value;
     public bool IsDrivenByMe => seats.IsDrivenByMe;
-
+    public void ServerRestoreHandbrake(bool on)
+    {
+        handbrakeOn.Value = on;
+    }
     void Awake()
     {
         rb = GetComponent<Rigidbody>();

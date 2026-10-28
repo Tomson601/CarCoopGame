@@ -940,6 +940,7 @@ GameObject:
   - component: {fileID: 57341345086983669}
   - component: {fileID: 8002889419789439244}
   - component: {fileID: 4940391278209080047}
+  - component: {fileID: -5832552223434628151}
   m_Layer: 0
   m_Name: Car
   m_TagString: Untagged
@@ -1151,6 +1152,7 @@ MonoBehaviour:
   - {fileID: 2551698781311800440, guid: f82a4968c67981040a82130d7d3e4592, type: 3}
   - {fileID: 4642633203993722059, guid: f4840192fc756f842bec12350f00514d, type: 3}
   - {fileID: 9210639032138276391, guid: 6ca22af32bb9156478b6cd6a3c9d5b6a, type: 3}
+  spawnStartingParts: 1
 --- !u!114 &7655081444010104234
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1236,6 +1238,19 @@ MonoBehaviour:
   minDistance: 3
   maxDistance: 80
   fadeSpeed: 6
+--- !u!114 &-5832552223434628151
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7986166748040159177}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65df2f6bc27d79c4680af70a934a15d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableObject
+  prefabId: Car
 --- !u!1 &8856999510651766619
 GameObject:
   m_ObjectHideFlags: 0

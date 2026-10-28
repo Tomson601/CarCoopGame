@@ -128,6 +128,7 @@ GameObject:
   - component: {fileID: 4204300075407405873}
   - component: {fileID: 5323002948057349899}
   - component: {fileID: 780426533564323867}
+  - component: {fileID: -5238361601004933328}
   m_Layer: 0
   m_Name: Jerrycan
   m_TagString: Untagged
@@ -197,7 +198,7 @@ MonoBehaviour:
   Ownership: 1
   AlwaysReplicateAsRoot: 0
   SynchronizeTransform: 1
-  m_InScenePlaced: 1
+  m_InScenePlaced: 0
   ActiveSceneSynchronization: 0
   SceneMigrationSynchronization: 0
   SpawnWithObservers: 1
@@ -318,6 +319,8 @@ MonoBehaviour:
     petrol: 20
     diesel: 0
     oil: 0
+    coolant: 0
+    usedOil: 0
   canPourFrom: 1
   pourRate: 2
   contents:
@@ -328,3 +331,18 @@ MonoBehaviour:
       petrol: 0
       diesel: 0
       oil: 0
+      coolant: 0
+      usedOil: 0
+--- !u!114 &-5238361601004933328
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1541864412315216982}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 65df2f6bc27d79c4680af70a934a15d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::SaveableObject
+  prefabId: Jerrycan

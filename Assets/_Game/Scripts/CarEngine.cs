@@ -137,7 +137,12 @@ public class CarEngine : NetworkBehaviour
         HandleShiftInput();
         HandleIgnitionInput();
     }
-
+    // Tylko na hoście, przy wczytywaniu gry (host jest wtedy właścicielem auta)
+    public void ServerRestore(int savedGear)
+    {
+        gear.Value = savedGear;
+        engineOn.Value = false; // po wczytaniu silnik jest zgaszony
+    }
     // Zwraca moment na tylnej osi (Nm)
     // Zwraca moment na tylnej osi (Nm)
     public float Simulate(float throttle)
