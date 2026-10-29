@@ -12,6 +12,10 @@ PrefabInstance:
       propertyPath: prefabId
       value: CoolantBottle
       objectReference: {fileID: 0}
+    - target: {fileID: 542739208154258349, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 558037511368110424, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
       propertyPath: GlobalObjectIdHash
       value: 1529439396
@@ -79,6 +83,10 @@ PrefabInstance:
     - target: {fileID: 2255725884847417559, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3367146724526388198, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
+      propertyPath: m_Enabled
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 3367146724526388198, guid: 9a35e59b7a8806c47be6cfaaac4f537a, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
