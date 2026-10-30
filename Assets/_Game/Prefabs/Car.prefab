@@ -317,6 +317,7 @@ MonoBehaviour:
   acceptedType: 5
   snapDistance: 0.8
   wheelCollider: {fileID: 0}
+  mirrorPart: 0
 --- !u!1 &2444817212157002613
 GameObject:
   m_ObjectHideFlags: 0
@@ -364,6 +365,7 @@ MonoBehaviour:
   acceptedType: 4
   snapDistance: 1
   wheelCollider: {fileID: 0}
+  mirrorPart: 0
 --- !u!1 &2781331308798466016
 GameObject:
   m_ObjectHideFlags: 0
@@ -629,6 +631,7 @@ MonoBehaviour:
   acceptedType: 0
   snapDistance: 1
   wheelCollider: {fileID: 6056400730157474913}
+  mirrorPart: 1
 --- !u!1 &5142706898331026994
 GameObject:
   m_ObjectHideFlags: 0
@@ -676,6 +679,7 @@ MonoBehaviour:
   acceptedType: 0
   snapDistance: 1
   wheelCollider: {fileID: 2554097824661059408}
+  mirrorPart: 0
 --- !u!1 &5244000574021388458
 GameObject:
   m_ObjectHideFlags: 0
@@ -723,6 +727,7 @@ MonoBehaviour:
   acceptedType: 2
   snapDistance: 1
   wheelCollider: {fileID: 0}
+  mirrorPart: 0
 --- !u!1 &5954712460884326072
 GameObject:
   m_ObjectHideFlags: 0
@@ -841,6 +846,7 @@ MonoBehaviour:
   acceptedType: 0
   snapDistance: 1
   wheelCollider: {fileID: 3418227431314428788}
+  mirrorPart: 0
 --- !u!1 &6802701735876168775
 GameObject:
   m_ObjectHideFlags: 0
@@ -888,6 +894,7 @@ MonoBehaviour:
   acceptedType: 3
   snapDistance: 1
   wheelCollider: {fileID: 0}
+  mirrorPart: 0
 --- !u!1 &6827849760374531655
 GameObject:
   m_ObjectHideFlags: 0
@@ -1298,6 +1305,7 @@ MonoBehaviour:
   acceptedType: 0
   snapDistance: 1
   wheelCollider: {fileID: 6558736015330658642}
+  mirrorPart: 1
 --- !u!1 &9148892730395336584
 GameObject:
   m_ObjectHideFlags: 0
@@ -1345,3 +1353,4 @@ MonoBehaviour:
   acceptedType: 1
   snapDistance: 1.2
   wheelCollider: {fileID: 0}
+  mirrorPart: 0

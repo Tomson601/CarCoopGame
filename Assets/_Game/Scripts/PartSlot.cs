@@ -7,4 +7,6 @@ public class PartSlot : MonoBehaviour
 
     [Tooltip("Tylko dla slotów kół")]
     public WheelCollider wheelCollider;
+    [Tooltip("Obróć część o 180° (np. koła po lewej stronie, żeby felga patrzyła na zewnątrz)")]
+    public bool mirrorPart;
 }

@@ -201,7 +201,9 @@ public class CarParts : NetworkBehaviour
 
             if (part != null)
             {
-                part.transform.SetPositionAndRotation(slots[i].transform.position, slots[i].transform.rotation);
+                Quaternion rotation = slots[i].transform.rotation;
+                if (slots[i].mirrorPart) rotation *= Quaternion.Euler(0f, 180f, 0f);
+                part.transform.SetPositionAndRotation(slots[i].transform.position, rotation);
 
                 // Część z własnymi slotami (felga z oponą) od razu ustawia swoje części, bez opóźnienia klatki
                 CarParts nested = part.GetComponent<CarParts>();
